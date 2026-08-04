@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
@@ -118,6 +119,12 @@ class MainActivity : AppCompatActivity() {
             ConnectionState.Connecting -> getString(R.string.status_connecting)
             is ConnectionState.Failed -> getString(R.string.status_failed, state.reason)
             ConnectionState.Disconnected -> getString(R.string.status_disconnected)
+        }
+        // The status line gets overwritten by the next reconnect attempt within
+        // ~1s, too fast to read — a longer-lived Toast makes the actual error
+        // (e.g. a socket failure) legible instead of just flashing by.
+        if (state is ConnectionState.Failed) {
+            Toast.makeText(this, getString(R.string.status_failed, state.reason), Toast.LENGTH_LONG).show()
         }
         binding.buttonConnect.text = getString(
             if (state is ConnectionState.Connected || state is ConnectionState.Connecting) {

@@ -123,11 +123,7 @@ class Elm327Transport(private val logger: CommandLogger) {
     private suspend fun tryConnectOnce(device: BluetoothDevice): Boolean {
         return try {
             closeQuietly()
-            val sock = withContext(Dispatchers.IO) {
-                val s = device.createRfcommSocketToServiceRecord(SPP_UUID)
-                s.connect()
-                s
-            }
+            val sock = withContext(Dispatchers.IO) { openSocket(device) }
             socket = sock
             input = sock.inputStream
             output = sock.outputStream
@@ -143,6 +139,44 @@ class Elm327Transport(private val logger: CommandLogger) {
             _connectionState.value = ConnectionState.Failed(e.message ?: "не удалось подключиться")
             logger.logError("connect failed: ${e.message}")
             false
+        }
+    }
+
+    /**
+     * Cheap ELM327 clones frequently don't implement SDP correctly, so the
+     * standard [BluetoothDevice.createRfcommSocketToServiceRecord] path
+     * throws "read failed, socket might closed or timeout, read ret: -1"
+     * even though the device is right there and paired. Fall back to the
+     * hidden-but-stable `createRfcommSocket(channel)` call (RFCOMM channel 1,
+     * which is what SPP dongles use) via reflection — this bypasses SDP
+     * entirely and is the standard workaround most OBD-II Android apps use
+     * for the ELM327 clone ecosystem.
+     */
+    private fun openSocket(device: BluetoothDevice): BluetoothSocket {
+        val standard = try {
+            device.createRfcommSocketToServiceRecord(SPP_UUID)
+        } catch (e: IOException) {
+            null
+        }
+        if (standard != null) {
+            try {
+                standard.connect()
+                return standard
+            } catch (e: IOException) {
+                logger.logError("standard SPP connect failed, trying channel 1 fallback: ${e.message}")
+                try { standard.close() } catch (_: Exception) { }
+            }
+        }
+        return try {
+            val fallback = device.javaClass
+                .getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                .invoke(device, 1) as BluetoothSocket
+            fallback.connect()
+            fallback
+        } catch (e: IOException) {
+            throw e
+        } catch (e: Exception) {
+            throw IOException("не удалось открыть сокет (fallback): ${e.message}", e)
         }
     }
 
