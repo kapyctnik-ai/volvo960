@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Volvo 960 Actuators</string>
+    <string name="app_version">v%1$s</string>
 
     <!-- Connection -->
     <string name="status_disconnected">Отключено</string>

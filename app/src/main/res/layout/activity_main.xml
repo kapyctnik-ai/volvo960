@@ -21,6 +21,15 @@
             android:padding="16dp">
 
             <TextView
+                android:id="@+id/textAppVersion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="6dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                tools:text="v0.4.0" />
+
+            <TextView
                 android:id="@+id/textConnectionStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

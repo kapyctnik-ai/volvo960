@@ -63,6 +63,10 @@ class MainActivity : AppCompatActivity() {
         binding.recyclerActuators.layoutManager = LinearLayoutManager(this)
         binding.recyclerActuators.adapter = actuatorAdapter
 
+        // Shown so a build can be identified at a glance — otherwise "the card
+        // isn't there" is indistinguishable from "an older APK is installed".
+        binding.textAppVersion.text = getString(R.string.app_version, appVersionName())
+
         binding.textSelectedDevice.text =
             (application as VolvoApp).prefs.lastDeviceAddress ?: getString(R.string.no_device_selected)
 
@@ -73,6 +77,12 @@ class MainActivity : AppCompatActivity() {
         binding.buttonAddActuator.setOnClickListener { openEditor(null) }
 
         observeState()
+    }
+
+    private fun appVersionName(): String = try {
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "?"
+    } catch (e: PackageManager.NameNotFoundException) {
+        "?"
     }
 
     private fun requestRuntimePermissions() {
