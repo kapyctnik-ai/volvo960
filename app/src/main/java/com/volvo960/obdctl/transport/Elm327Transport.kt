@@ -257,7 +257,12 @@ class Elm327Transport(private val logger: CommandLogger) {
             val raw = withContext(Dispatchers.IO) { readUntilPrompt(inp, timeoutMs) }
             val cleaned = cleanResponse(raw)
             logger.logReceived(cleaned)
-            CommandResult.Success(cleaned)
+            val failure = adapterErrorIn(cleaned)
+            if (failure != null) {
+                CommandResult.Error("$command -> $failure")
+            } else {
+                CommandResult.Success(cleaned)
+            }
         } catch (e: IOException) {
             logger.logError(e.message ?: "io error")
             CommandResult.Error(e.message ?: "ошибка ввода-вывода")
@@ -282,6 +287,25 @@ class Elm327Transport(private val logger: CommandLogger) {
             }
         }
         return sb.toString()
+    }
+
+    /**
+     * Getting bytes back before the prompt is not the same as the command
+     * having worked: the adapter answers its own failures in-band. Without
+     * this, a hold whose every tick is rejected still looks healthy, and the
+     * no-response watchdog never fires because responses keep arriving.
+     */
+    private fun adapterErrorIn(response: String): String? {
+        val upper = response.uppercase()
+        val markers = listOf(
+            "NO DATA", "UNABLE TO CONNECT", "BUS INIT: ERROR", "BUS ERROR", "BUS BUSY",
+            "CAN ERROR", "DATA ERROR", "FB ERROR", "LP ALERT", "LV RESET",
+            "BUFFER FULL", "STOPPED", "ERR",
+        )
+        markers.firstOrNull { upper.contains(it) }?.let { return it }
+        // A bare "?" is how the adapter reports a command it didn't understand.
+        if (upper.split("\n").any { it.trim() == "?" }) return "не понял команду (?)"
+        return null
     }
 
     private fun cleanResponse(raw: String): String =

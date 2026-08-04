@@ -63,9 +63,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun pollCoolantTemp() {
         while (true) {
-            when (val result = app.transport.sendRaw(COOLANT_TEMP_PID, 3_000L)) {
-                is Elm327Transport.CommandResult.Success -> parseCoolantTemp(result.response)?.let { _coolantTempC.value = it }
-                is Elm327Transport.CommandResult.Error -> Unit
+            // Re-checked synchronously right before sending, not just via the
+            // flow above: a hold that starts while this loop is mid-delay must
+            // not get one last generic request dropped into its session.
+            if (activeHolds.value.isEmpty()) {
+                when (val result = app.transport.sendRaw(COOLANT_TEMP_PID, 3_000L)) {
+                    is Elm327Transport.CommandResult.Success -> parseCoolantTemp(result.response)?.let { _coolantTempC.value = it }
+                    is Elm327Transport.CommandResult.Error -> Unit
+                }
             }
             delay(COOLANT_POLL_INTERVAL_MS)
         }

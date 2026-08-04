@@ -71,15 +71,18 @@ class HoldManager(
         var stopReason: String? = null
         val tickCommands = actuator.commands()
         try {
-            // Session handshake runs once up front; the tick loop below only
-            // resends the control command itself.
+            // The handshake and the first control command go out as one
+            // uninterruptible batch. Splitting them would leave a gap where
+            // another caller's traffic could land between opening the session
+            // and using it, which resets the adapter and voids the session.
             val init = actuator.initCommands()
             if (init.isNotEmpty()) {
-                val initResult = transport.sendSequence(init, actuator.responseTimeoutMs)
+                val initResult = transport.sendSequence(init + tickCommands, actuator.responseTimeoutMs)
                 if (initResult is Elm327Transport.CommandResult.Error) {
                     stopReason = "инициализация не прошла: ${initResult.message}"
                     return
                 }
+                delay(actuator.repeatIntervalMs)
             }
             while (true) {
                 val elapsed = System.currentTimeMillis() - startedAt

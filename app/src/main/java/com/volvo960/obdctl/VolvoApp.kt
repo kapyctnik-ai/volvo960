@@ -68,12 +68,16 @@ class VolvoApp : Application() {
             val existing = repository.observeAll().first()
             // Drop the earlier placeholder card, which carried no control bytes.
             existing.filter { it.command.contains("ПУСТО") }.forEach { repository.delete(it) }
-            if (existing.none { it.command.contains(FAN_CONTROL_FRAME) }) {
+            for ((name, frame) in listOf(
+                "Вентилятор радиатора (Low)" to FAN_LOW_FRAME,
+                "Вентилятор радиатора (High)" to FAN_HIGH_FRAME,
+            )) {
+                if (existing.any { it.command.contains(frame) }) continue
                 repository.save(
                     Actuator(
-                        name = "Вентилятор радиатора",
+                        name = name,
                         initScript = FAN_INIT_SCRIPT,
-                        command = FAN_CONTROL_FRAME,
+                        command = frame,
                         offCommand = FAN_OFF_SCRIPT,
                         behavior = ActuatorBehavior.HOLD_REPEAT,
                         repeatIntervalMs = 2_000,
@@ -109,8 +113,12 @@ class VolvoApp : Application() {
             ATSH 85 7A 13
         """.trimIndent()
 
-        /** Answered with `83 13 7A F0 0E 0E` by the ECU. */
-        const val FAN_CONTROL_FRAME = "B00E 3203"
+        /**
+         * `B0 <id> 32 03` drives one output; the ECU acknowledges with
+         * `83 13 7A F0 <id> <id>`. Both frames below are decoded captures.
+         */
+        const val FAN_LOW_FRAME = "B00E 3203"
+        const val FAN_HIGH_FRAME = "B01F 3203"
 
         val FAN_OFF_SCRIPT = """
             ATSH 82 7A 13
