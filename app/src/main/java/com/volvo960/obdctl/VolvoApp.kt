@@ -66,26 +66,34 @@ class VolvoApp : Application() {
         if (prefs.fanActuatorSeeded) return
         appScope.launch {
             val existing = repository.observeAll().first()
-            // Drop the earlier placeholder card, which carried no control bytes.
-            existing.filter { it.command.contains("ПУСТО") }.forEach { repository.delete(it) }
+            // Drop earlier generations of this card: the placeholder that had
+            // no control bytes, and the version that repeated the toggle frame
+            // as its tick and so switched the fan on and off in a loop.
+            existing.filter { it.command.contains("ПУСТО") || it.command.contains("B0") }
+                .forEach { repository.delete(it) }
             for ((name, frame) in listOf(
                 "Вентилятор радиатора (Low)" to FAN_LOW_FRAME,
                 "Вентилятор радиатора (High)" to FAN_HIGH_FRAME,
             )) {
-                if (existing.any { it.command.contains(frame) }) continue
                 repository.save(
                     Actuator(
                         name = name,
-                        initScript = FAN_INIT_SCRIPT,
-                        command = frame,
-                        offCommand = FAN_OFF_SCRIPT,
+                        // The control frame fires here, once, as the last step
+                        // of opening the session — see KEEP_ALIVE_TICK.
+                        initScript = FAN_INIT_SCRIPT + "\n" + frame,
+                        command = KEEP_ALIVE_TICK,
+                        // The ECU latches the output — it keeps running even
+                        // with the key out — so switching off has to be an
+                        // explicit toggle back, not just dropping the session.
+                        offCommand = frame + "\n" + FAN_OFF_SCRIPT,
                         behavior = ActuatorBehavior.HOLD_REPEAT,
                         repeatIntervalMs = 2_000,
                         autoStopTimeoutMs = 5 * 60_000,
                         // The 5-baud slow init in the setup script takes a
                         // couple of seconds on its own.
                         responseTimeoutMs = 9_000,
-                        notes = "Motronic M4.4, ECU 7A, KWP D3B0. Снято с рабочего сеанса 850 OBD-II.",
+                        notes = "Motronic M4.4, ECU 7A, KWP D3B0. Команда переключает выход, " +
+                            "поэтому шлётся один раз при включении и один раз при выключении.",
                     )
                 )
             }
@@ -116,9 +124,24 @@ class VolvoApp : Application() {
         /**
          * `B0 <id> 32 03` drives one output; the ECU acknowledges with
          * `83 13 7A F0 <id> <id>`. Both frames below are decoded captures.
+         *
+         * The frame toggles rather than sets: resending it on a repeat
+         * interval switched the fan on and straight back off again.
          */
         const val FAN_LOW_FRAME = "B00E 3203"
         const val FAN_HIGH_FRAME = "B01F 3203"
+
+        /**
+         * What the hold loop repeats once the output is already on. Reading the
+         * adapter's voltage touches the ELM only, never the K-line, so it keeps
+         * the hold (and its timeout, notification and stop button) alive
+         * without disturbing the latched output. The K-line session itself is
+         * held up by the wake-up message armed with ATWM.
+         *
+         * Trade-off: because this always answers, the no-response watchdog can
+         * no longer tell that the ECU went away — only that the adapter did.
+         */
+        const val KEEP_ALIVE_TICK = "ATRV"
 
         val FAN_OFF_SCRIPT = """
             ATSH 82 7A 13

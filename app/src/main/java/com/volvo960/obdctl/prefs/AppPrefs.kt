@@ -17,6 +17,8 @@ class AppPrefs(context: Context) {
 
     companion object {
         private const val KEY_DEVICE_ADDRESS = "last_device_address"
-        private const val KEY_FAN_SEEDED = "fan_actuator_seeded"
+        // Bumped when the seeded fan cards change shape, so existing installs
+        // get the corrected version instead of keeping the broken one.
+        private const val KEY_FAN_SEEDED = "fan_actuator_seeded_v2"
     }
 }
