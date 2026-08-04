@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="volvo_red">#B00020</color>
+    <color name="volvo_red_dark">#7F0016</color>
+    <color name="status_connected">#2E7D32</color>
+    <color name="status_connecting">#F9A825</color>
+    <color name="status_disconnected">#757575</color>
+    <color name="status_failed">#C62828</color>
+    <color name="surface_dark">#121212</color>
+    <color name="surface_card">#1E1E1E</color>
+    <color name="text_primary">#F5F5F5</color>
+    <color name="text_secondary">#AAAAAA</color>
+</resources>

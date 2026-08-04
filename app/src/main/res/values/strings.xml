@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Volvo 960 Actuators</string>
+
+    <!-- Connection -->
+    <string name="status_disconnected">Отключено</string>
+    <string name="status_connecting">Подключение…</string>
+    <string name="status_connected">Подключено: %1$s</string>
+    <string name="status_failed">Ошибка: %1$s</string>
+    <string name="action_connect">Подключить</string>
+    <string name="action_disconnect">Отключить</string>
+    <string name="action_choose_device">Выбрать адаптер</string>
+    <string name="no_device_selected">Адаптер не выбран</string>
+    <string name="no_paired_devices">Нет сопряжённых Bluetooth-устройств. Сопрягите ELM327 в настройках Android.</string>
+    <string name="dialog_title_choose_device">Сопряжённые устройства</string>
+
+    <!-- Main screen -->
+    <string name="section_active_holds">Активные удержания</string>
+    <string name="section_actuators">Актуаторы</string>
+    <string name="action_stop_all">Остановить всё</string>
+    <string name="action_stop">Стоп</string>
+    <string name="action_open_console">Консоль команд</string>
+    <string name="action_add_actuator">Добавить актуатор</string>
+    <string name="empty_active_holds">Нет активных удержаний</string>
+    <string name="empty_actuators">Реестр пуст. Подберите команду в консоли и сохраните как актуатор.</string>
+    <string name="hold_status_running">удержание · каждые %1$d с</string>
+    <string name="hold_status_stale">нет ответа %1$d с</string>
+
+    <!-- Actuator card -->
+    <string name="behavior_once">разово</string>
+    <string name="behavior_hold_repeat">удержание</string>
+    <string name="action_send_once">Отправить</string>
+    <string name="action_edit">Изменить</string>
+    <string name="action_delete">Удалить</string>
+    <string name="confirm_delete_actuator">Удалить актуатор «%1$s»?</string>
+
+    <!-- Warning dialog -->
+    <string name="warning_title">Внимание</string>
+    <string name="warning_message">Вы включаете удержание для «%1$s». Команда будет повторяться на реальном автомобиле, пока вы её не остановите или не сработает автостоп. Управляйте только тем, что безопасно тестировать на стоянке.</string>
+    <string name="warning_dont_ask_again">Больше не спрашивать для этого актуатора</string>
+    <string name="action_proceed">Включить</string>
+    <string name="action_cancel">Отмена</string>
+
+    <!-- Actuator editor -->
+    <string name="editor_title_new">Новый актуатор</string>
+    <string name="editor_title_edit">Редактирование актуатора</string>
+    <string name="field_name">Название</string>
+    <string name="field_command">Команда включения (ASCII/hex, как в консоли)</string>
+    <string name="field_off_command">Команда выключения (необязательно)</string>
+    <string name="field_behavior">Тип поведения</string>
+    <string name="field_repeat_interval">Интервал повтора, мс</string>
+    <string name="field_autostop_timeout">Автостоп удержания, мс</string>
+    <string name="field_response_timeout">Таймаут ответа адаптера, мс</string>
+    <string name="field_notes">Заметки</string>
+    <string name="action_save">Сохранить</string>
+    <string name="error_name_required">Укажите название</string>
+    <string name="error_command_required">Укажите команду</string>
+
+    <!-- Console -->
+    <string name="console_title">Консоль команд</string>
+    <string name="console_hint_command">Команда (например ATZ)</string>
+    <string name="action_send">Отправить</string>
+    <string name="action_save_as_actuator">Сохранить как актуатор</string>
+    <string name="console_no_response_yet">Ответов пока нет</string>
+    <string name="console_not_connected">Сначала подключитесь к адаптеру</string>
+
+    <!-- Service / notifications -->
+    <string name="notif_channel_status_name">Статус подключения</string>
+    <string name="notif_channel_status_desc">Foreground-уведомление о подключении к ELM327 и активных удержаниях</string>
+    <string name="notif_channel_alerts_name">Предупреждения</string>
+    <string name="notif_channel_alerts_desc">Автостоп удержания при потере связи с адаптером</string>
+    <string name="notif_title_connected">ELM327 подключён</string>
+    <string name="notif_title_holding">Активные удержания: %1$d</string>
+    <string name="notif_action_stop_all">Остановить всё</string>
+    <string name="notif_action_stop_one">Стоп: %1$s</string>
+    <string name="notif_watchdog_title">Удержание остановлено</string>
+    <string name="notif_watchdog_body">«%1$s»: %2$s. Автостоп сработал.</string>
+
+    <string name="unit_ms">мс</string>
+</resources>
