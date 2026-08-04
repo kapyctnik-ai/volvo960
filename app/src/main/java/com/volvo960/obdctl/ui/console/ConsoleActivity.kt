@@ -3,7 +3,9 @@ package com.volvo960.obdctl.ui.console
 import android.content.Intent
 import android.os.Bundle
 import android.view.inputmethod.EditorInfo
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -48,6 +50,11 @@ class ConsoleActivity : AppCompatActivity() {
                     .putExtra(ActuatorEditActivity.EXTRA_PREFILL_COMMAND, cmd)
             )
         }
+        binding.buttonShareLog.setOnClickListener { shareLog() }
+        binding.buttonClearLog.setOnClickListener {
+            (application as VolvoApp).logger.clear()
+            Toast.makeText(this, R.string.log_cleared, Toast.LENGTH_SHORT).show()
+        }
 
         observeConnection()
     }
@@ -83,6 +90,27 @@ class ConsoleActivity : AppCompatActivity() {
                 is Elm327Transport.CommandResult.Error -> appendLine("ошибка: ${result.message}")
             }
         }
+    }
+
+    /**
+     * Hands the raw traffic log to another app. Everything the transport ever
+     * sends or receives lands there, so it is the fastest way to see what an
+     * actuator actually did on the wire.
+     */
+    private fun shareLog() {
+        val logFile = (application as VolvoApp).logger.file()
+        if (!logFile.exists() || logFile.length() == 0L) {
+            Toast.makeText(this, R.string.log_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", logFile)
+        val share = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_log_title))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(share, getString(R.string.share_log_title)))
     }
 
     private fun appendLine(text: String) {

@@ -40,4 +40,12 @@ class CommandLogger(context: Context) {
     }
 
     fun logFilePath(): String = logFile.absolutePath
+
+    fun file(): File = logFile
+
+    fun clear() {
+        synchronized(lock) {
+            try { logFile.writeText("") } catch (_: Exception) { }
+        }
+    }
 }

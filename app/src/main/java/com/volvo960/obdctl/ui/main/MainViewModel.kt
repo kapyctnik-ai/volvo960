@@ -46,14 +46,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // request sent into the middle of it would break the session and drop
         // the actuator.
         viewModelScope.launch {
+            connectionState.collectLatest { state ->
+                if (state !is ConnectionState.Connected) _coolantTempC.value = null
+            }
+        }
+        viewModelScope.launch {
             combine(connectionState, activeHolds) { state, holds ->
                 state is ConnectionState.Connected && holds.isEmpty()
             }.collectLatest { shouldPoll ->
-                if (shouldPoll) {
-                    pollCoolantTemp()
-                } else {
-                    _coolantTempC.value = null
-                }
+                // Paused during a hold, but the last reading stays on screen —
+                // blanking it there reads as a fault rather than as a pause.
+                if (shouldPoll) pollCoolantTemp()
             }
         }
     }

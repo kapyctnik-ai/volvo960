@@ -69,6 +69,11 @@
     <string name="action_save_as_actuator">Сохранить как актуатор</string>
     <string name="console_no_response_yet">Ответов пока нет</string>
     <string name="console_not_connected">Сначала подключитесь к адаптеру</string>
+    <string name="action_share_log">Выгрузить лог</string>
+    <string name="action_clear_log">Очистить лог</string>
+    <string name="log_cleared">Лог очищен</string>
+    <string name="log_empty">Лог пуст</string>
+    <string name="share_log_title">Лог обмена с адаптером</string>
 
     <!-- Service / notifications -->
     <string name="notif_channel_status_name">Статус подключения</string>
