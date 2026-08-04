@@ -53,43 +53,69 @@ class VolvoApp : Application() {
     }
 
     /**
-     * Drops a ready-made radiator-fan card into an empty registry so the first
-     * target actuator is already on screen, wired up and only missing its
-     * control bytes. Those bytes are car-specific and are captured from a tool
-     * already proven to work on this car (README explains how) — they are
-     * deliberately left blank rather than guessed, because a wrong sequence
-     * sent to the engine ECU can trip something other than the fan.
+     * Installs the radiator-fan card. The sequence below is a decoded capture
+     * of a tool already proven to work on this car, not a guess: the ECU
+     * answers `83 13 7A F0 0E 0E` to the control frame, and `F0` is `B0 + 0x40`
+     * — a positive response in KWP terms.
+     *
+     * The actuator test only lives as long as the diagnostic session, so the
+     * session teardown is the off-script and the control frame is what the
+     * hold loop repeats.
      */
     private fun seedRegistryIfEmpty() {
-        if (prefs.registrySeeded) return
+        if (prefs.fanActuatorSeeded) return
         appScope.launch {
-            if (repository.observeAll().first().isNotEmpty()) {
-                prefs.registrySeeded = true
-                return@launch
-            }
-            repository.save(
-                Actuator(
-                    name = "Вентилятор радиатора (M4.4)",
-                    initScript = """
-                        # Volvo Motronic M4.4 / KWP D3B0 / ECU 7A
-                        ATZ
-                        ATE0
-                        ATL0
-                        ATSP3
-                        ATKW0
-                        ATSH 84 7A F1
-                    """.trimIndent(),
-                    command = """
-                        # ПУСТО: вставь сюда команду теста вентилятора (hex).
-                        # Как её снять — см. README, раздел про btsnoop.
-                    """.trimIndent(),
-                    behavior = ActuatorBehavior.HOLD_REPEAT,
-                    repeatIntervalMs = 2_000,
-                    autoStopTimeoutMs = 5 * 60_000,
-                    notes = "Байты команды не подставлены — карточка ничего не шлёт, пока не заполнишь поле команды.",
+            val existing = repository.observeAll().first()
+            // Drop the earlier placeholder card, which carried no control bytes.
+            existing.filter { it.command.contains("ПУСТО") }.forEach { repository.delete(it) }
+            if (existing.none { it.command.contains(FAN_CONTROL_FRAME) }) {
+                repository.save(
+                    Actuator(
+                        name = "Вентилятор радиатора",
+                        initScript = FAN_INIT_SCRIPT,
+                        command = FAN_CONTROL_FRAME,
+                        offCommand = FAN_OFF_SCRIPT,
+                        behavior = ActuatorBehavior.HOLD_REPEAT,
+                        repeatIntervalMs = 2_000,
+                        autoStopTimeoutMs = 5 * 60_000,
+                        // The 5-baud slow init in the setup script takes a
+                        // couple of seconds on its own.
+                        responseTimeoutMs = 9_000,
+                        notes = "Motronic M4.4, ECU 7A, KWP D3B0. Снято с рабочего сеанса 850 OBD-II.",
+                    )
                 )
-            )
-            prefs.registrySeeded = true
+            }
+            prefs.fanActuatorSeeded = true
         }
+    }
+
+    private companion object {
+        /** Volvo's own K-line protocol, engine ECU 7A, tester address 13. */
+        val FAN_INIT_SCRIPT = """
+            ATL1
+            ATS1
+            ATSP 3
+            ATH1
+            ATAL
+            ATKW0
+            ATSR 13
+            ATE0
+            ATAT 1
+            ATST 32
+            ATPC
+            ATIIA 7A
+            ATWM 82 7A 13 A1
+            ATSI
+            ATSH 85 7A 13
+        """.trimIndent()
+
+        /** Answered with `83 13 7A F0 0E 0E` by the ECU. */
+        const val FAN_CONTROL_FRAME = "B00E 3203"
+
+        val FAN_OFF_SCRIPT = """
+            ATSH 82 7A 13
+            A0
+            ATPC
+        """.trimIndent()
     }
 }

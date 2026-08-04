@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -38,9 +39,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Standard Mode 01 PID 05 is part of the OBD-II spec (unlike actuator
         // control, which is manufacturer-specific), so it's safe to poll
         // automatically over the same shared transport queue as everything else.
+        //
+        // It must stop while a hold is running, though: an actuator holding a
+        // manufacturer session has reconfigured the adapter (headers, ECU
+        // address, protocol init) for that session, and a generic OBD-II
+        // request sent into the middle of it would break the session and drop
+        // the actuator.
         viewModelScope.launch {
-            connectionState.collectLatest { state ->
-                if (state is ConnectionState.Connected) {
+            combine(connectionState, activeHolds) { state, holds ->
+                state is ConnectionState.Connected && holds.isEmpty()
+            }.collectLatest { shouldPoll ->
+                if (shouldPoll) {
                     pollCoolantTemp()
                 } else {
                     _coolantTempC.value = null
