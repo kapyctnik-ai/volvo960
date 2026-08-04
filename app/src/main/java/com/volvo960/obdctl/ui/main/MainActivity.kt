@@ -89,6 +89,15 @@ class MainActivity : AppCompatActivity() {
                     viewModel.connectionState.collect { state -> renderConnectionState(state) }
                 }
                 launch {
+                    viewModel.coolantTempC.collect { tempC ->
+                        binding.textCoolantTemp.text = if (tempC != null) {
+                            getString(R.string.coolant_temp_value, tempC)
+                        } else {
+                            getString(R.string.coolant_temp_unknown)
+                        }
+                    }
+                }
+                launch {
                     combine(viewModel.actuators, viewModel.activeHolds) { list, holds -> list to holds }
                         .collect { (list, holds) ->
                             lastActuators = list

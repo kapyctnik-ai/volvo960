@@ -11,6 +11,8 @@
     <string name="action_disconnect">Отключить</string>
     <string name="action_choose_device">Выбрать адаптер</string>
     <string name="no_device_selected">Адаптер не выбран</string>
+    <string name="coolant_temp_value">ОЖ: %1$d °C</string>
+    <string name="coolant_temp_unknown">ОЖ: —</string>
     <string name="no_paired_devices">Нет сопряжённых Bluetooth-устройств. Сопрягите ELM327 в настройках Android.</string>
     <string name="dialog_title_choose_device">Сопряжённые устройства</string>
 

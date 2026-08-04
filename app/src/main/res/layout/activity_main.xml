@@ -38,6 +38,16 @@
                 android:textSize="13sp"
                 tools:text="00:11:22:33:44:55" />
 
+            <TextView
+                android:id="@+id/textCoolantTemp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textColor="@color/text_primary"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                tools:text="ОЖ: 87 °C" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
