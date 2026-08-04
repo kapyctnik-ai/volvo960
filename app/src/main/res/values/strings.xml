@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Volvo 960 Actuators</string>
+    <string name="app_name">960-Dash</string>
     <string name="app_version">v%1$s</string>
 
     <!-- Connection -->
@@ -88,4 +88,16 @@
     <string name="notif_watchdog_body">«%1$s»: %2$s. Автостоп сработал.</string>
 
     <string name="unit_ms">мс</string>
+
+    <!-- Dashboard -->
+    <string name="auto_fan_short">АВТО</string>
+    <string name="fan_low_short">ВЕНТ 1</string>
+    <string name="fan_high_short">ВЕНТ 2</string>
+    <string name="trip_reset_short">TRIP 0</string>
+    <string name="controls_short">УПР.</string>
+    <string name="dash_status_disconnected">Нет связи · нажмите УПР. для подключения</string>
+    <string name="dash_status_connecting">Подключение…</string>
+    <string name="dash_status_connected">%1$s · авто-вентилятор при %2$d °C</string>
+    <string name="dash_status_failed">Ошибка: %1$s</string>
+    <string name="fan_not_ready">Карточка вентилятора не найдена</string>
 </resources>

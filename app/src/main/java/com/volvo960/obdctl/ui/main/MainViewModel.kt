@@ -9,21 +9,11 @@ import com.volvo960.obdctl.data.Actuator
 import com.volvo960.obdctl.service.HoldService
 import com.volvo960.obdctl.service.HoldStatus
 import com.volvo960.obdctl.transport.ConnectionState
-import com.volvo960.obdctl.transport.Elm327Transport
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
-
-    companion object {
-        private const val COOLANT_TEMP_PID = "0105"
-        private const val COOLANT_POLL_INTERVAL_MS = 3_000L
-    }
 
     private val app = application as VolvoApp
 
@@ -31,62 +21,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val activeHolds: StateFlow<Map<Long, HoldStatus>> = app.holdManager.activeHolds
     val actuators = app.repository.observeAll()
 
-    private val _coolantTempC = MutableStateFlow<Int?>(null)
-    /** Live engine coolant temperature in °C, from the standard OBD-II PID 0105. Null while not connected or not yet read. */
-    val coolantTempC: StateFlow<Int?> = _coolantTempC.asStateFlow()
-
-    init {
-        // Standard Mode 01 PID 05 is part of the OBD-II spec (unlike actuator
-        // control, which is manufacturer-specific), so it's safe to poll
-        // automatically over the same shared transport queue as everything else.
-        //
-        // It must stop while a hold is running, though: an actuator holding a
-        // manufacturer session has reconfigured the adapter (headers, ECU
-        // address, protocol init) for that session, and a generic OBD-II
-        // request sent into the middle of it would break the session and drop
-        // the actuator.
-        viewModelScope.launch {
-            connectionState.collectLatest { state ->
-                if (state !is ConnectionState.Connected) _coolantTempC.value = null
-            }
-        }
-        viewModelScope.launch {
-            combine(connectionState, activeHolds) { state, holds ->
-                state is ConnectionState.Connected && holds.isEmpty()
-            }.collectLatest { shouldPoll ->
-                // Paused during a hold, but the last reading stays on screen —
-                // blanking it there reads as a fault rather than as a pause.
-                if (shouldPoll) pollCoolantTemp()
-            }
-        }
-    }
-
-    private suspend fun pollCoolantTemp() {
-        while (true) {
-            // Re-checked synchronously right before sending, not just via the
-            // flow above: a hold that starts while this loop is mid-delay must
-            // not get one last generic request dropped into its session.
-            if (activeHolds.value.isEmpty()) {
-                when (val result = app.transport.sendRaw(COOLANT_TEMP_PID, 3_000L)) {
-                    is Elm327Transport.CommandResult.Success -> parseCoolantTemp(result.response)?.let { _coolantTempC.value = it }
-                    is Elm327Transport.CommandResult.Error -> Unit
-                }
-            }
-            delay(COOLANT_POLL_INTERVAL_MS)
-        }
-    }
-
-    /** Parses a "41 05 xx" Mode 01 PID 05 response; temperature is xx (hex) - 40 °C. */
-    private fun parseCoolantTemp(response: String): Int? {
-        val bytes = response.uppercase()
-            .split(Regex("[\\s\r\n]+"))
-            .filter { it.matches(Regex("[0-9A-F]{2}")) }
-        val modeIndex = bytes.indexOf("41")
-        if (modeIndex == -1 || modeIndex + 2 >= bytes.size) return null
-        if (bytes[modeIndex + 1] != "05") return null
-        val raw = bytes[modeIndex + 2].toIntOrNull(16) ?: return null
-        return raw - 40
-    }
+    /** Live coolant temperature, read by the app-wide poller that also feeds the dashboard. */
+    val coolantTempC = app.vehicleData.state.map { it.coolantTempC }
 
     fun connect(device: BluetoothDevice) {
         app.prefs.lastDeviceAddress = device.address

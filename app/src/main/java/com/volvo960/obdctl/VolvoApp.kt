@@ -5,7 +5,9 @@ import com.volvo960.obdctl.data.Actuator
 import com.volvo960.obdctl.data.ActuatorBehavior
 import com.volvo960.obdctl.data.ActuatorRepository
 import com.volvo960.obdctl.data.AppDatabase
+import com.volvo960.obdctl.data.VehicleDataPoller
 import com.volvo960.obdctl.prefs.AppPrefs
+import com.volvo960.obdctl.service.AutoFanController
 import com.volvo960.obdctl.service.HoldManager
 import com.volvo960.obdctl.service.NotificationHelper
 import com.volvo960.obdctl.transport.CommandLogger
@@ -38,6 +40,10 @@ class VolvoApp : Application() {
         private set
     lateinit var holdManager: HoldManager
         private set
+    lateinit var vehicleData: VehicleDataPoller
+        private set
+    lateinit var autoFan: AutoFanController
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -49,6 +55,10 @@ class VolvoApp : Application() {
         holdManager = HoldManager(transport, appScope) { actuator, reason ->
             notificationHelper.postWatchdogAlert(actuator.id, actuator.name, reason)
         }
+        vehicleData = VehicleDataPoller(transport, appScope, prefs)
+        vehicleData.start()
+        autoFan = AutoFanController(repository, holdManager, prefs, appScope)
+        autoFan.observe(vehicleData.state)
         seedRegistryIfEmpty()
     }
 
@@ -78,14 +88,14 @@ class VolvoApp : Application() {
                 repository.save(
                     Actuator(
                         name = name,
-                        // The control frame fires here, once, as the last step
-                        // of opening the session — see KEEP_ALIVE_TICK.
-                        initScript = FAN_INIT_SCRIPT + "\n" + frame,
+                        // One complete open-toggle-close session, which frees
+                        // the bus again immediately — see KEEP_ALIVE_TICK.
+                        initScript = toggleSession(frame),
                         command = KEEP_ALIVE_TICK,
                         // The ECU latches the output — it keeps running even
                         // with the key out — so switching off has to be an
                         // explicit toggle back, not just dropping the session.
-                        offCommand = frame + "\n" + FAN_OFF_SCRIPT,
+                        offCommand = toggleSession(frame),
                         behavior = ActuatorBehavior.HOLD_REPEAT,
                         repeatIntervalMs = 2_000,
                         autoStopTimeoutMs = 5 * 60_000,
@@ -102,8 +112,20 @@ class VolvoApp : Application() {
     }
 
     private companion object {
+        /**
+         * One self-contained toggle: open the manufacturer session, send the
+         * control frame, close it and put the adapter back on generic OBD-II.
+         *
+         * Closing it straight away is deliberate. The ECU latches the output,
+         * so the session isn't needed to keep the fan running — and leaving it
+         * open would monopolise the bus, blocking the dashboard's readings for
+         * as long as the fan is on.
+         */
+        fun toggleSession(frame: String): String =
+            FAN_SESSION_OPEN + "\n" + frame + "\n" + FAN_SESSION_CLOSE
+
         /** Volvo's own K-line protocol, engine ECU 7A, tester address 13. */
-        val FAN_INIT_SCRIPT = """
+        val FAN_SESSION_OPEN = """
             ATL1
             ATS1
             ATSP 3
@@ -132,21 +154,30 @@ class VolvoApp : Application() {
         const val FAN_HIGH_FRAME = "B01F 3203"
 
         /**
-         * What the hold loop repeats once the output is already on. Reading the
-         * adapter's voltage touches the ELM only, never the K-line, so it keeps
-         * the hold (and its timeout, notification and stop button) alive
-         * without disturbing the latched output. The K-line session itself is
-         * held up by the wake-up message armed with ATWM.
+         * What the hold loop repeats once the output is already latched on.
+         * Reading the adapter's voltage touches the ELM only, never the car,
+         * so the hold keeps its timeout, notification and stop button without
+         * disturbing anything — and the bus stays free for the dashboard.
          *
          * Trade-off: because this always answers, the no-response watchdog can
          * no longer tell that the ECU went away — only that the adapter did.
          */
         const val KEEP_ALIVE_TICK = "ATRV"
 
-        val FAN_OFF_SCRIPT = """
+        /**
+         * Ends the session and restores the generic OBD-II setup the dashboard
+         * polling expects — without this the header stays pointed at the engine
+         * ECU and ordinary Mode 01 requests come back malformed.
+         */
+        val FAN_SESSION_CLOSE = """
             ATSH 82 7A 13
             A0
             ATPC
+            ATD
+            ATE0
+            ATL0
+            ATH0
+            ATSP 3
         """.trimIndent()
     }
 }

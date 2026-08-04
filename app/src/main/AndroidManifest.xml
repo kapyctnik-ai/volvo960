@@ -27,15 +27,24 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Volvo960">
 
+        <!-- Landscape-first, but free to rotate: it's a cluster, not a form. -->
         <activity
-            android:name=".ui.main.MainActivity"
+            android:name=".ui.dash.DashActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="true"
-            android:launchMode="singleTop">
+            android:launchMode="singleTop"
+            android:screenOrientation="fullSensor">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ui.main.MainActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:parentActivityName=".ui.dash.DashActivity" />
 
         <activity
             android:name=".ui.editor.ActuatorEditActivity"

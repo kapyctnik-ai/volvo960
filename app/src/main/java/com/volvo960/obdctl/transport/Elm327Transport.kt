@@ -42,7 +42,14 @@ class Elm327Transport(private val logger: CommandLogger) {
 
     sealed class CommandResult {
         data class Success(val response: String) : CommandResult()
-        data class Error(val message: String) : CommandResult()
+
+        /**
+         * [fatal] separates "the link is broken" from "the car declined this
+         * one request". Polling a PID the ECU doesn't implement answers
+         * NO DATA, and tearing down a healthy connection over that would make
+         * probing for supported readings impossible.
+         */
+        data class Error(val message: String, val fatal: Boolean = true) : CommandResult()
     }
 
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
@@ -99,7 +106,7 @@ class Elm327Transport(private val logger: CommandLogger) {
             return CommandResult.Error("нет соединения")
         }
         val result = mutex.withLock { rawExchange(command, timeoutMs) }
-        if (result is CommandResult.Error) {
+        if (result is CommandResult.Error && result.fatal) {
             onTransportFailure(result.message)
         }
         return result
@@ -142,7 +149,7 @@ class Elm327Transport(private val logger: CommandLogger) {
             }
             CommandResult.Success(responses.toString())
         }
-        if (result is CommandResult.Error) {
+        if (result is CommandResult.Error && result.fatal) {
             onTransportFailure(result.message)
         }
         return result
@@ -258,11 +265,7 @@ class Elm327Transport(private val logger: CommandLogger) {
             val cleaned = cleanResponse(raw)
             logger.logReceived(cleaned)
             val failure = adapterErrorIn(cleaned)
-            if (failure != null) {
-                CommandResult.Error("$command -> $failure")
-            } else {
-                CommandResult.Success(cleaned)
-            }
+            failure?.copy(message = "$command -> ${failure.message}") ?: CommandResult.Success(cleaned)
         } catch (e: IOException) {
             logger.logError(e.message ?: "io error")
             CommandResult.Error(e.message ?: "ошибка ввода-вывода")
@@ -295,16 +298,20 @@ class Elm327Transport(private val logger: CommandLogger) {
      * this, a hold whose every tick is rejected still looks healthy, and the
      * no-response watchdog never fires because responses keep arriving.
      */
-    private fun adapterErrorIn(response: String): String? {
+    private fun adapterErrorIn(response: String): CommandResult.Error? {
         val upper = response.uppercase()
-        val markers = listOf(
-            "NO DATA", "UNABLE TO CONNECT", "BUS INIT: ERROR", "BUS ERROR", "BUS BUSY",
-            "CAN ERROR", "DATA ERROR", "FB ERROR", "LP ALERT", "LV RESET",
-            "BUFFER FULL", "STOPPED", "ERR",
+        val fatal = listOf(
+            "UNABLE TO CONNECT", "BUS INIT: ERROR", "BUS ERROR", "BUS BUSY",
+            "CAN ERROR", "FB ERROR", "LP ALERT", "LV RESET", "BUFFER FULL", "STOPPED",
         )
-        markers.firstOrNull { upper.contains(it) }?.let { return it }
+        fatal.firstOrNull { upper.contains(it) }?.let { return CommandResult.Error(it, fatal = true) }
+        // The car simply had nothing to say for this request; the link is fine.
+        val declined = listOf("NO DATA", "DATA ERROR", "ERR")
+        declined.firstOrNull { upper.contains(it) }?.let { return CommandResult.Error(it, fatal = false) }
         // A bare "?" is how the adapter reports a command it didn't understand.
-        if (upper.split("\n").any { it.trim() == "?" }) return "не понял команду (?)"
+        if (upper.split("\n").any { it.trim() == "?" }) {
+            return CommandResult.Error("не понял команду (?)", fatal = false)
+        }
         return null
     }
 
