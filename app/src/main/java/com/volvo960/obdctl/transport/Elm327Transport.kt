@@ -105,6 +105,49 @@ class Elm327Transport(private val logger: CommandLogger) {
         return result
     }
 
+    /**
+     * Sends several commands back-to-back while holding the queue lock for the
+     * whole run, so nothing else can interleave in the middle.
+     *
+     * Manufacturer-specific actuator work needs this: selecting an ECU and
+     * opening a diagnostic session are only meaningful if the control command
+     * that follows lands in that same session. A per-command lock would let
+     * another actuator's traffic (or a coolant-temp poll) slip in between and
+     * silently retarget the session.
+     *
+     * Stops at the first failure and returns the responses collected so far.
+     */
+    suspend fun sendSequence(
+        commands: List<String>,
+        timeoutMs: Long = DEFAULT_COMMAND_TIMEOUT_MS,
+        interCommandDelayMs: Long = 80L,
+    ): CommandResult {
+        if (commands.isEmpty()) return CommandResult.Success("")
+        if (connectionState.value !is ConnectionState.Connected) {
+            return CommandResult.Error("нет соединения")
+        }
+        val responses = StringBuilder()
+        val result = mutex.withLock {
+            var last: CommandResult = CommandResult.Success("")
+            for ((index, command) in commands.withIndex()) {
+                last = rawExchange(command, timeoutMs)
+                when (last) {
+                    is CommandResult.Success -> {
+                        if (responses.isNotEmpty()) responses.append('\n')
+                        responses.append((last as CommandResult.Success).response)
+                    }
+                    is CommandResult.Error -> return@withLock last
+                }
+                if (index != commands.lastIndex) delay(interCommandDelayMs)
+            }
+            CommandResult.Success(responses.toString())
+        }
+        if (result is CommandResult.Error) {
+            onTransportFailure(result.message)
+        }
+        return result
+    }
+
     private suspend fun connectLoop(device: BluetoothDevice) {
         while (autoReconnect) {
             _connectionState.value = ConnectionState.Connecting

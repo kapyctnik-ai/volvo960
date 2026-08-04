@@ -47,7 +47,10 @@
     <string name="editor_title_new">Новый актуатор</string>
     <string name="editor_title_edit">Редактирование актуатора</string>
     <string name="field_name">Название</string>
-    <string name="field_command">Команда включения (ASCII/hex, как в консоли)</string>
+    <string name="field_init_script">Init-скрипт (по одной команде в строке, шлётся 1 раз)</string>
+    <string name="field_command">Команда включения (одна или несколько строк)</string>
+    <string name="action_preset_volvo_m44">Шаблон: Volvo M4.4 (KWP D3B0, ECU 7A)</string>
+    <string name="preset_applied">Шаблон подставлен. Замени XX на реальный байт.</string>
     <string name="field_off_command">Команда выключения (необязательно)</string>
     <string name="field_behavior">Тип поведения</string>
     <string name="field_repeat_interval">Интервал повтора, мс</string>

@@ -13,7 +13,19 @@ import androidx.room.PrimaryKey
 data class Actuator(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    /** Raw command sent to activate/pulse this actuator, exactly as typed in the console. */
+    /**
+     * Commands sent once when the actuator is activated, before [command],
+     * newline-separated. Manufacturer-specific actuator control generally
+     * needs a setup handshake here — protocol select, header/ECU addressing,
+     * opening a diagnostic session — which must not be repeated on every tick.
+     * Empty for plain actuators that are a single self-contained command.
+     */
+    val initScript: String = "",
+    /**
+     * Raw command sent to activate/pulse this actuator, exactly as typed in the
+     * console. May be several newline-separated commands; they are sent as one
+     * uninterruptible batch.
+     */
     val command: String,
     /** Optional explicit "turn off" command; sent when a hold is stopped, if present. */
     val offCommand: String? = null,
@@ -28,4 +40,18 @@ data class Actuator(
     val warningAcknowledged: Boolean = false,
     val notes: String = "",
     val createdAt: Long = System.currentTimeMillis(),
-)
+) {
+    /** [initScript] split into individual commands, blank lines and `#` comments dropped. */
+    fun initCommands(): List<String> = splitScript(initScript)
+
+    /** [command] split into individual commands. */
+    fun commands(): List<String> = splitScript(command)
+
+    /** [offCommand] split into individual commands; empty when there is none. */
+    fun offCommands(): List<String> = splitScript(offCommand.orEmpty())
+
+    private fun splitScript(script: String): List<String> =
+        script.split('\n')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+}

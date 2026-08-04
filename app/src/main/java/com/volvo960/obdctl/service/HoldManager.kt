@@ -54,22 +54,40 @@ class HoldManager(
         jobs.keys.toList().forEach { stop(it) }
     }
 
-    suspend fun sendOnce(actuator: Actuator): Elm327Transport.CommandResult =
-        transport.sendRaw(actuator.command, actuator.responseTimeoutMs)
+    /** Runs the init handshake (if any) followed by the actuator's command, once. */
+    suspend fun sendOnce(actuator: Actuator): Elm327Transport.CommandResult {
+        val init = actuator.initCommands()
+        if (init.isNotEmpty()) {
+            val initResult = transport.sendSequence(init, actuator.responseTimeoutMs)
+            if (initResult is Elm327Transport.CommandResult.Error) return initResult
+        }
+        return transport.sendSequence(actuator.commands(), actuator.responseTimeoutMs)
+    }
 
     private suspend fun runHoldLoop(actuator: Actuator) {
         val startedAt = System.currentTimeMillis()
         var lastSuccessAt = startedAt
         setStatus(HoldStatus(actuator.id, actuator.name, startedAt, actuator.repeatIntervalMs, startedAt, startedAt))
         var stopReason: String? = null
+        val tickCommands = actuator.commands()
         try {
+            // Session handshake runs once up front; the tick loop below only
+            // resends the control command itself.
+            val init = actuator.initCommands()
+            if (init.isNotEmpty()) {
+                val initResult = transport.sendSequence(init, actuator.responseTimeoutMs)
+                if (initResult is Elm327Transport.CommandResult.Error) {
+                    stopReason = "инициализация не прошла: ${initResult.message}"
+                    return
+                }
+            }
             while (true) {
                 val elapsed = System.currentTimeMillis() - startedAt
                 if (elapsed >= actuator.autoStopTimeoutMs) {
                     stopReason = "истёк таймаут удержания"
                     break
                 }
-                val result = transport.sendRaw(actuator.command, actuator.responseTimeoutMs)
+                val result = transport.sendSequence(tickCommands, actuator.responseTimeoutMs)
                 val now = System.currentTimeMillis()
                 when (result) {
                     is Elm327Transport.CommandResult.Success -> {
@@ -88,8 +106,9 @@ class HoldManager(
             }
         } finally {
             withContext(NonCancellable) {
-                actuator.offCommand?.let { off ->
-                    transport.sendRaw(off, actuator.responseTimeoutMs)
+                val off = actuator.offCommands()
+                if (off.isNotEmpty()) {
+                    transport.sendSequence(off, actuator.responseTimeoutMs)
                 }
             }
             jobs.remove(actuator.id)
