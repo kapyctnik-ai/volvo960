@@ -12,4 +12,5 @@ data class VehicleState(
     val atfTempC: Int? = null,
     val fuelLevelPercent: Int? = null,
     val tripKm: Double = 0.0,
+    val totalKm: Double = 0.0,
 )

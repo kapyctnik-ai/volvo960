@@ -28,6 +28,7 @@ class VehicleDataPoller(
 ) {
     interface TripStore {
         var tripKm: Double
+        var totalKm: Double
     }
 
     private companion object {
@@ -41,7 +42,7 @@ class VehicleDataPoller(
         const val SPEED_STALE_MS = 4_000L
     }
 
-    private val _state = MutableStateFlow(VehicleState(tripKm = prefs.tripKm))
+    private val _state = MutableStateFlow(VehicleState(tripKm = prefs.tripKm, totalKm = prefs.totalKm))
     val state: StateFlow<VehicleState> = _state.asStateFlow()
 
     private var job: Job? = null
@@ -57,6 +58,7 @@ class VehicleDataPoller(
         job = null
     }
 
+    /** Zeroes the trip counter only; the odometer window keeps counting. */
     fun resetTrip() {
         prefs.tripKm = 0.0
         _state.update { it.copy(tripKm = 0.0) }
@@ -65,7 +67,7 @@ class VehicleDataPoller(
     private suspend fun loop() {
         while (true) {
             if (transport.connectionState.value !is ConnectionState.Connected) {
-                _state.update { VehicleState(tripKm = it.tripKm) }
+                _state.update { VehicleState(tripKm = it.tripKm, totalKm = it.totalKm) }
                 lastSpeedAtMs = 0L
                 delay(1_000)
                 continue
@@ -97,9 +99,11 @@ class VehicleDataPoller(
         if (elapsedMs <= 0 || elapsedMs > SPEED_STALE_MS) return
         val km = speedKmh * (elapsedMs / 3_600_000.0)
         if (km <= 0.0) return
-        val total = prefs.tripKm + km
-        prefs.tripKm = total
-        _state.update { it.copy(tripKm = total) }
+        val trip = prefs.tripKm + km
+        val total = prefs.totalKm + km
+        prefs.tripKm = trip
+        prefs.totalKm = total
+        _state.update { it.copy(tripKm = trip, totalKm = total) }
     }
 
     /**

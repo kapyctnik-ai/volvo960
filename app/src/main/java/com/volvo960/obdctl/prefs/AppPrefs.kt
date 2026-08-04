@@ -29,6 +29,11 @@ class AppPrefs(context: Context) : VehicleDataPoller.TripStore {
         get() = Double.fromBits(prefs.getLong(KEY_TRIP_KM, 0L))
         set(value) = prefs.edit().putLong(KEY_TRIP_KM, value.toRawBits()).apply()
 
+    /** Feeds the odometer window. The car's own odometer isn't readable, so this counts from install. */
+    override var totalKm: Double
+        get() = Double.fromBits(prefs.getLong(KEY_TOTAL_KM, 0L))
+        set(value) = prefs.edit().putLong(KEY_TOTAL_KM, value.toRawBits()).apply()
+
     companion object {
         private const val KEY_DEVICE_ADDRESS = "last_device_address"
         // Bumped when the seeded fan cards change shape, so existing installs
@@ -37,5 +42,6 @@ class AppPrefs(context: Context) : VehicleDataPoller.TripStore {
         private const val KEY_AUTO_FAN = "auto_fan_enabled"
         private const val KEY_AUTO_FAN_ON = "auto_fan_on_c"
         private const val KEY_TRIP_KM = "trip_km"
+        private const val KEY_TOTAL_KM = "total_km"
     }
 }

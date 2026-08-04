@@ -100,4 +100,7 @@
     <string name="dash_status_connected">%1$s · авто-вентилятор при %2$d °C</string>
     <string name="dash_status_failed">Ошибка: %1$s</string>
     <string name="fan_not_ready">Карточка вентилятора не найдена</string>
+    <string name="trip_reset_done">Trip сброшен</string>
+    <string name="auto_fan_on">Авто-вентилятор включён, порог %1$d °C</string>
+    <string name="auto_fan_off">Авто-вентилятор выключен</string>
 </resources>

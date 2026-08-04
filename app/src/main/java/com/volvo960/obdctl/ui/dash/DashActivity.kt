@@ -2,26 +2,34 @@ package com.volvo960.obdctl.ui.dash
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.volvo960.obdctl.R
 import com.volvo960.obdctl.VolvoApp
 import com.volvo960.obdctl.data.Actuator
 import com.volvo960.obdctl.databinding.ActivityDashBinding
+import com.volvo960.obdctl.service.HoldService
 import com.volvo960.obdctl.transport.ConnectionState
-import com.volvo960.obdctl.ui.main.MainActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * The instrument cluster stand-in, and the screen the app opens on. Controls
- * that belong behind the wheel live on the strip underneath; everything else
- * (registry, console) is one tap away in [MainActivity].
+ * The cluster, full screen and free of app chrome — no title bar, no system
+ * bars, no button strip. Controls live on the cluster itself:
+ *
+ *  - tap the fan tell-tale: cycle off → low → high → off
+ *  - long-press the tell-tale: toggle the automatic fan
+ *  - tap the trip knob: zero the trip counter
+ *  - long-press anywhere else: open the registry and console
  */
 class DashActivity : AppCompatActivity() {
 
@@ -37,28 +45,51 @@ class DashActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityDashBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        goFullScreen()
         // A cluster that blanks while driving is useless.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        binding.switchAutoFan.isChecked = app.prefs.autoFanEnabled
-        binding.switchAutoFan.setOnCheckedChangeListener { _, checked ->
-            app.prefs.autoFanEnabled = checked
+        binding.dashboard.onTripReset = {
+            app.vehicleData.resetTrip()
+            Toast.makeText(this, R.string.trip_reset_done, Toast.LENGTH_SHORT).show()
         }
-        binding.buttonFanLow.setOnClickListener { toggleFan(FAN_LOW_MARKER) }
-        binding.buttonFanHigh.setOnClickListener { toggleFan(FAN_HIGH_MARKER) }
-        binding.buttonResetTrip.setOnClickListener { app.vehicleData.resetTrip() }
-        binding.buttonControls.setOnClickListener {
-            startActivity(Intent(this, MainActivity::class.java))
+        binding.dashboard.onFanTap = { cycleFan() }
+        binding.dashboard.onFanLongPress = {
+            val enabled = !app.prefs.autoFanEnabled
+            app.prefs.autoFanEnabled = enabled
+            Toast.makeText(
+                this,
+                if (enabled) getString(R.string.auto_fan_on, app.prefs.autoFanOnC) else getString(R.string.auto_fan_off),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+        binding.dashboard.onOpenControls = {
+            startActivity(Intent(this, com.volvo960.obdctl.ui.main.MainActivity::class.java))
         }
 
         observe()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) goFullScreen()
+    }
+
+    private fun goFullScreen() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, binding.root).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
     }
 
     private fun observe() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
-                    app.vehicleData.state.collect { vehicle ->
+                    combine(app.vehicleData.state, app.holdManager.activeHolds) { vehicle, holds ->
+                        vehicle to holds.isNotEmpty()
+                    }.collect { (vehicle, fanOn) ->
                         binding.dashboard.submit(
                             speedKmh = vehicle.speedKmh,
                             rpm = vehicle.rpm,
@@ -66,42 +97,46 @@ class DashActivity : AppCompatActivity() {
                             atfTempC = vehicle.atfTempC,
                             fuelPercent = vehicle.fuelLevelPercent,
                             tripKm = vehicle.tripKm,
+                            totalKm = vehicle.totalKm,
+                            fanOn = fanOn,
                         )
                     }
                 }
                 launch {
-                    combine(app.transport.connectionState, app.holdManager.activeHolds) { state, holds ->
-                        state to holds
-                    }.collect { (state, holds) ->
-                        binding.textDashStatus.text = when (state) {
-                            is ConnectionState.Connected ->
-                                getString(R.string.dash_status_connected, state.deviceName, app.prefs.autoFanOnC)
-                            ConnectionState.Connecting -> getString(R.string.dash_status_connecting)
+                    app.transport.connectionState.collect { state ->
+                        val message = when (state) {
                             is ConnectionState.Failed -> getString(R.string.dash_status_failed, state.reason)
                             ConnectionState.Disconnected -> getString(R.string.dash_status_disconnected)
+                            ConnectionState.Connecting -> getString(R.string.dash_status_connecting)
+                            is ConnectionState.Connected -> null
                         }
-                        val lowOn = holds.values.any { it.actuatorName.contains("Low") }
-                        val highOn = holds.values.any { it.actuatorName.contains("High") }
-                        binding.buttonFanLow.alpha = if (lowOn) 1f else 0.5f
-                        binding.buttonFanHigh.alpha = if (highOn) 1f else 0.5f
+                        binding.textDashStatus.text = message.orEmpty()
+                        binding.textDashStatus.visibility = if (message == null) View.GONE else View.VISIBLE
                     }
                 }
             }
         }
     }
 
-    private fun toggleFan(marker: String) {
+    /** Off → low → high → off, so one tell-tale covers both fan speeds. */
+    private fun cycleFan() {
         lifecycleScope.launch {
-            val fan = findFan(marker)
-            if (fan == null) {
+            val low = findFan(FAN_LOW_MARKER)
+            val high = findFan(FAN_HIGH_MARKER)
+            if (low == null || high == null) {
                 Toast.makeText(this@DashActivity, R.string.fan_not_ready, Toast.LENGTH_SHORT).show()
                 return@launch
             }
-            if (app.holdManager.isHeld(fan.id)) {
-                app.holdManager.stop(fan.id)
-            } else {
-                com.volvo960.obdctl.service.HoldService.start(app)
-                app.holdManager.start(fan)
+            val lowOn = app.holdManager.isHeld(low.id)
+            val highOn = app.holdManager.isHeld(high.id)
+            HoldService.start(app)
+            when {
+                !lowOn && !highOn -> app.holdManager.start(low)
+                lowOn -> {
+                    app.holdManager.stop(low.id)
+                    app.holdManager.start(high)
+                }
+                else -> app.holdManager.stop(high.id)
             }
         }
     }
