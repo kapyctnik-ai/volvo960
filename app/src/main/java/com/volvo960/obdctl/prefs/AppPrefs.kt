@@ -38,7 +38,7 @@ class AppPrefs(context: Context) : VehicleDataPoller.TripStore {
         private const val KEY_DEVICE_ADDRESS = "last_device_address"
         // Bumped when the seeded fan cards change shape, so existing installs
         // get the corrected version instead of keeping the broken one.
-        private const val KEY_FAN_SEEDED = "fan_actuator_seeded_v3"
+        private const val KEY_FAN_SEEDED = "fan_actuator_seeded_v4"
         private const val KEY_AUTO_FAN = "auto_fan_enabled"
         private const val KEY_AUTO_FAN_ON = "auto_fan_on_c"
         private const val KEY_TRIP_KM = "trip_km"

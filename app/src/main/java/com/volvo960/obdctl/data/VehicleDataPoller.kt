@@ -29,6 +29,11 @@ class VehicleDataPoller(
     private val transport: Elm327Transport,
     private val scope: CoroutineScope,
     private val prefs: TripStore,
+    /**
+     * True while an actuator holds a manufacturer session open. Generic Mode 01
+     * requests sent into such a session break it, so polling stands down.
+     */
+    private val sessionBusy: () -> Boolean = { false },
 ) {
     interface TripStore {
         var tripKm: Double
@@ -71,7 +76,20 @@ class VehicleDataPoller(
 
     fun start() {
         if (job?.isActive == true) return
-        job = scope.launch { loop() }
+        job = scope.launch {
+            // A parse slip must not be able to take the gauges out for the rest
+            // of the session: keep looping and surface it instead.
+            while (true) {
+                try {
+                    loop()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _lastError.value = "опрос: ${e.javaClass.simpleName} ${e.message.orEmpty()}"
+                    delay(2_000)
+                }
+            }
+        }
     }
 
     fun stop() {
@@ -93,6 +111,12 @@ class VehicleDataPoller(
                 supported = null
                 consecutiveFailures = 0
                 delay(1_000)
+                continue
+            }
+
+            if (sessionBusy()) {
+                lastSpeedAtMs = 0L
+                delay(500)
                 continue
             }
 
@@ -145,7 +169,9 @@ class VehicleDataPoller(
         if (result !is Elm327Transport.CommandResult.Success) return emptySet()
         val bytes = hexBytes(result.response)
         val at = bytes.indexOfFirst { it == "41" }
-        if (at == -1 || bytes[at + 1] != "00" || bytes.size < at + 6) return emptySet()
+        // Bounds first: indexing before checking threw, and the exception killed
+        // the polling coroutine outright, so every gauge stayed blank forever.
+        if (at == -1 || bytes.size < at + 6 || bytes[at + 1] != "00") return emptySet()
         val mask = (2..5).fold(0L) { acc, i ->
             (acc shl 8) or (bytes.getOrNull(at + i)?.toLongOrNull(16) ?: return emptySet())
         }

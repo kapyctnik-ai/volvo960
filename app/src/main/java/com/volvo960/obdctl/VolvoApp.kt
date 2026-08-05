@@ -55,7 +55,9 @@ class VolvoApp : Application() {
         holdManager = HoldManager(transport, appScope) { actuator, reason ->
             notificationHelper.postWatchdogAlert(actuator.id, actuator.name, reason)
         }
-        vehicleData = VehicleDataPoller(transport, appScope, prefs)
+        vehicleData = VehicleDataPoller(transport, appScope, prefs) {
+            holdManager.activeHolds.value.isNotEmpty()
+        }
         vehicleData.start()
         autoFan = AutoFanController(repository, holdManager, prefs, appScope)
         autoFan.observe(vehicleData.state)
@@ -68,9 +70,9 @@ class VolvoApp : Application() {
      * answers `83 13 7A F0 0E 0E` to the control frame, and `F0` is `B0 + 0x40`
      * — a positive response in KWP terms.
      *
-     * The actuator test only lives as long as the diagnostic session, so the
-     * session teardown is the off-script and the control frame is what the
-     * hold loop repeats.
+     * The test lives exactly as long as the diagnostic session, so the frame
+     * is sent once when the session opens and switching off is simply closing
+     * it. Nothing is repeated onto the bus in between.
      */
     private fun seedRegistryIfEmpty() {
         if (prefs.fanActuatorSeeded) return
@@ -88,22 +90,25 @@ class VolvoApp : Application() {
                 repository.save(
                     Actuator(
                         name = name,
-                        // One complete open-toggle-close session, which frees
-                        // the bus again immediately — see KEEP_ALIVE_TICK.
-                        initScript = toggleSession(frame),
+                        // Open the session and fire the frame once. The session
+                        // then stays open, and what holds the output on is the
+                        // tester-present message armed with ATWM, which the
+                        // adapter repeats on its own — the protocol's own
+                        // mechanism for exactly this, and no bus traffic from us.
+                        initScript = FAN_SESSION_OPEN + "\n" + frame,
+                        // Adapter-only, so the hold keeps its timeout,
+                        // notification and stop button without putting anything
+                        // on the K-line.
                         command = KEEP_ALIVE_TICK,
-                        // The ECU latches the output — it keeps running even
-                        // with the key out — so switching off has to be an
-                        // explicit toggle back, not just dropping the session.
-                        offCommand = toggleSession(frame),
+                        offCommand = FAN_SESSION_CLOSE,
                         behavior = ActuatorBehavior.HOLD_REPEAT,
                         repeatIntervalMs = 2_000,
                         autoStopTimeoutMs = 5 * 60_000,
                         // The 5-baud slow init in the setup script takes a
                         // couple of seconds on its own.
                         responseTimeoutMs = 9_000,
-                        notes = "Motronic M4.4, ECU 7A, KWP D3B0. Команда переключает выход, " +
-                            "поэтому шлётся один раз при включении и один раз при выключении.",
+                        notes = "Motronic M4.4, ECU 7A, KWP D3B0. Кадр шлётся один раз, " +
+                            "выход держит tester-present по ATWM, пока сессия открыта.",
                     )
                 )
             }
@@ -112,18 +117,6 @@ class VolvoApp : Application() {
     }
 
     private companion object {
-        /**
-         * One self-contained toggle: open the manufacturer session, send the
-         * control frame, close it and put the adapter back on generic OBD-II.
-         *
-         * Closing it straight away is deliberate. The ECU latches the output,
-         * so the session isn't needed to keep the fan running — and leaving it
-         * open would monopolise the bus, blocking the dashboard's readings for
-         * as long as the fan is on.
-         */
-        fun toggleSession(frame: String): String =
-            FAN_SESSION_OPEN + "\n" + frame + "\n" + FAN_SESSION_CLOSE
-
         /** Volvo's own K-line protocol, engine ECU 7A, tester address 13. */
         val FAN_SESSION_OPEN = """
             ATL1
@@ -139,6 +132,7 @@ class VolvoApp : Application() {
             ATPC
             ATIIA 7A
             ATWM 82 7A 13 A1
+            ATSW 5A
             ATSI
             ATSH 85 7A 13
         """.trimIndent()
@@ -147,20 +141,17 @@ class VolvoApp : Application() {
          * `B0 <id> 32 03` drives one output; the ECU acknowledges with
          * `83 13 7A F0 <id> <id>`. Both frames below are decoded captures.
          *
-         * The frame toggles rather than sets: resending it on a repeat
-         * interval switched the fan on and straight back off again.
+         * The frame is a momentary command, not a latch: sent once with the
+         * session closed straight after, the fan ran well under a second;
+         * resent on a two-second interval it audibly pulsed on and off.
          */
         const val FAN_LOW_FRAME = "B00E 3203"
         const val FAN_HIGH_FRAME = "B01F 3203"
 
         /**
-         * What the hold loop repeats once the output is already latched on.
-         * Reading the adapter's voltage touches the ELM only, never the car,
-         * so the hold keeps its timeout, notification and stop button without
-         * disturbing anything — and the bus stays free for the dashboard.
-         *
-         * Trade-off: because this always answers, the no-response watchdog can
-         * no longer tell that the ECU went away — only that the adapter did.
+         * Ticked while the output is already on. Reading the adapter's voltage
+         * never reaches the car, so nothing is sent onto the K-line — the
+         * session is held up by the wake-up message alone.
          */
         const val KEEP_ALIVE_TICK = "ATRV"
 
