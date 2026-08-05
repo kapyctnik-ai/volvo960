@@ -307,7 +307,11 @@ class Elm327Transport(private val logger: CommandLogger) {
             val cleaned = cleanResponse(raw)
             logger.logReceived(cleaned)
             val failure = adapterErrorIn(cleaned)
-            failure?.copy(message = "$command -> ${failure.message}") ?: CommandResult.Success(cleaned)
+            // The raw reply travels with the complaint: naming only the marker
+            // that matched hides what the adapter actually said, which is the
+            // one thing needed to work out why.
+            failure?.copy(message = "$command -> ${failure.message} | ответ: ${cleaned.replace("\n", " / ")}")
+                ?: CommandResult.Success(cleaned)
         } catch (e: IOException) {
             logger.logError(e.message ?: "io error")
             CommandResult.Error(e.message ?: "ошибка ввода-вывода")
@@ -348,7 +352,10 @@ class Elm327Transport(private val logger: CommandLogger) {
         )
         fatal.firstOrNull { upper.contains(it) }?.let { return CommandResult.Error(it, fatal = true) }
         // The car simply had nothing to say for this request; the link is fine.
-        val declined = listOf("NO DATA", "DATA ERROR", "ERR")
+        // "ERR" on its own is deliberately not matched: it appears inside plenty
+        // of longer words and turned real replies into bare "ERR" messages that
+        // said nothing about what actually came back.
+        val declined = listOf("NO DATA", "DATA ERROR")
         declined.firstOrNull { upper.contains(it) }?.let { return CommandResult.Error(it, fatal = false) }
         // A bare "?" is how the adapter reports a command it didn't understand.
         if (upper.split("\n").any { it.trim() == "?" }) {

@@ -31,32 +31,38 @@ class ConsoleActivity : AppCompatActivity() {
          * live data: it does not use generic OBD-II Mode 01 at all, but its own
          * `AE01` request under Volvo's keyword-D3B0 protocol.
          *
-         * Taken from that tool's own trace, with the tester-present that opens
-         * communications made explicit — in the trace the bus initialisation
-         * appears against the header command, which cannot itself cause it.
+         * `ATSI` is the important line. Without it the bus is never initialised
+         * — `ATKW` came back `1:-- 2:--` instead of the protocol's `1:D3 2:B0`
+         * and every request to the car failed. The same slow init is what the
+         * working fan sequence uses.
+         *
+         * `ATKW` appears twice on purpose: before the init it should be empty,
+         * after it the keyword proves the ECU is actually talking.
          */
         val MOTRONIC_PROBE = listOf(
             "ATPC",
             "ATD",
             "ATZ",
+            "ATE0",
             "ATL0",
             "ATS0",
-            "ATSP 3",
             "ATH1",
             "ATAL",
+            "ATSP 3",
             "ATKW0",
             "ATSR 13",
             "ATAT 1",
             "ATST 32",
-            "ATE0",
             "ATIIA 7A",
             "ATWM 82 7A 13 A1",
+            "ATSI",
+            "ATKW",
             "ATSH 82 7A 13",
             "A1",
-            "ATKW",
             "ATSH 83 7A 13",
             "AE01",
             "AE01",
+            "AE02",
         )
     }
 
