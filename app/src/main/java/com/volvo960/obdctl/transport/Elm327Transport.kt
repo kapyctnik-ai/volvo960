@@ -101,12 +101,22 @@ class Elm327Transport(private val logger: CommandLogger) {
      * particular) must treat that as a failed tick, not something to queue
      * for later.
      */
-    suspend fun sendRaw(command: String, timeoutMs: Long = DEFAULT_COMMAND_TIMEOUT_MS): CommandResult {
+    /**
+     * @param dropOnFailure whether a failure should tear the link down and
+     *   reconnect. Background polling passes false: a slow or unanswered
+     *   reading is routine on this car, and letting it drop the connection put
+     *   the app in a connect/​fail/​reconnect loop that never settled.
+     */
+    suspend fun sendRaw(
+        command: String,
+        timeoutMs: Long = DEFAULT_COMMAND_TIMEOUT_MS,
+        dropOnFailure: Boolean = true,
+    ): CommandResult {
         if (connectionState.value !is ConnectionState.Connected) {
             return CommandResult.Error("нет соединения")
         }
         val result = mutex.withLock { rawExchange(command, timeoutMs) }
-        if (result is CommandResult.Error && result.fatal) {
+        if (result is CommandResult.Error && result.fatal && dropOnFailure) {
             onTransportFailure(result.message)
         }
         return result

@@ -103,13 +103,20 @@ class DashActivity : AppCompatActivity() {
                     }
                 }
                 launch {
-                    app.transport.connectionState.collect { state ->
-                        val message = when (state) {
+                    // Connection state alone flickers while the adapter settles,
+                    // so the last complaint is kept on screen until a reading
+                    // actually succeeds. A message that vanishes before it can
+                    // be read is worse than no message.
+                    combine(app.transport.connectionState, app.vehicleData.lastError) { state, pollError ->
+                        when (state) {
                             is ConnectionState.Failed -> getString(R.string.dash_status_failed, state.reason)
                             ConnectionState.Disconnected -> getString(R.string.dash_status_disconnected)
                             ConnectionState.Connecting -> getString(R.string.dash_status_connecting)
-                            is ConnectionState.Connected -> null
+                            is ConnectionState.Connected -> pollError?.let {
+                                getString(R.string.dash_status_failed, it)
+                            }
                         }
+                    }.collect { message ->
                         binding.textDashStatus.text = message.orEmpty()
                         binding.textDashStatus.visibility = if (message == null) View.GONE else View.VISIBLE
                     }
