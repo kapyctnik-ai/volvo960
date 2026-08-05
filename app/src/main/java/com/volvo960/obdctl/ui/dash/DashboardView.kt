@@ -2,7 +2,6 @@ package com.volvo960.obdctl.ui.dash
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -15,7 +14,6 @@ import java.util.Calendar
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
-import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -46,7 +44,9 @@ class DashboardView @JvmOverloads constructor(
         const val TICK_MAJOR = 0xFF7FF2F4.toInt()
         const val LABEL = 0xFF7FF2F4.toInt()
         const val NEEDLE = 0xFFFF5A1A.toInt()
-        const val NEEDLE_GLOW = 0x44FF5A1A
+        const val NEEDLE_HALO = 0x66FF6928
+        const val NEEDLE_EDGE = 0xFFE04A12.toInt()
+        const val NEEDLE_CREST = 0xFFFF7A3C.toInt()
         const val HUB = 0xFF191E20.toInt()
         const val REDLINE = 0xFFD41F1F.toInt()
         const val WINDOW_BG = 0xFF08090A.toInt()
@@ -106,8 +106,11 @@ class DashboardView @JvmOverloads constructor(
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
     }
+    private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeJoin = Paint.Join.ROUND
+    }
     private val needlePath = Path()
-    private val matrix = Matrix()
 
     private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent) = true
@@ -182,72 +185,112 @@ class DashboardView @JvmOverloads constructor(
         canvas.drawBitmap(art.face, 0f, 0f, null)
 
         val g = art.geometry
-        g.speedo?.let { drawArtNeedle(canvas, art.needleLong, it, fraction(shownSpeed, 0f, SPEED_MAX)) }
-        g.tacho?.let { drawArtNeedle(canvas, art.needleLong, it, fraction(shownRpm, 0f, RPM_MAX)) }
-        g.fuel?.let { drawArtNeedle(canvas, art.needleShort, it, fraction(shownFuel, 0f, 100f)) }
-        g.temp?.let { drawArtNeedle(canvas, art.needleShort, it, fraction(shownCoolant, TEMP_MIN, TEMP_MAX)) }
-        g.clock?.let { drawArtClock(canvas, art, it) }
+        g.odometerRect?.let { drawCounterWindow(canvas, it, "%06d".format(totalKm.toInt()), WINDOW_DIGIT) }
+        g.tripRect?.let { drawCounterWindow(canvas, it, "%05.1f".format(tripKm), WINDOW_TRIP_DIGIT) }
 
-        g.odometerRect?.let { drawOdometerDigits(canvas, it, "%06d".format(totalKm.toInt()), WINDOW_DIGIT, drawWindow = false) }
-        g.tripRect?.let { drawOdometerDigits(canvas, it, "%05.1f".format(tripKm), WINDOW_TRIP_DIGIT, drawWindow = false) }
+        g.speedo?.let { drawDialNeedle(canvas, it, fraction(shownSpeed, 0f, SPEED_MAX), targetSpeed != null) }
+        g.tacho?.let { drawDialNeedle(canvas, it, fraction(shownRpm, 0f, RPM_MAX), targetRpm != null) }
+        g.fuel?.let { drawDialNeedle(canvas, it, fraction(shownFuel, 0f, 100f), targetFuel != null) }
+        g.temp?.let { drawDialNeedle(canvas, it, fraction(shownCoolant, TEMP_MIN, TEMP_MAX), targetCoolant != null) }
+        g.clock?.let { drawArtClock(canvas, g, it) }
 
         canvas.restore()
 
         g.resetKnob?.let {
-            val cx = dx + it.cx * scale
-            val cy = dy + it.cy * scale
-            val r = (it.r * scale).coerceAtLeast(24f)
-            knobHit.set(cx - r, cy - r, cx + r, cy + r)
+            knobHit.set(
+                dx + it.left * scale,
+                dy + it.top * scale,
+                dx + it.right * scale,
+                dy + it.bottom * scale,
+            )
+            // The photographed knob is tiny; give the touch target room.
+            val padX = ((48f - knobHit.width()) / 2f).coerceAtLeast(0f)
+            val padY = ((48f - knobHit.height()) / 2f).coerceAtLeast(0f)
+            knobHit.inset(-padX, -padY)
         }
-        // The tell-tale isn't part of the artwork, so it goes in the housing
-        // strip under the dials where the real warning-light row sits.
-        drawFanLamp(canvas, width / 2f, dy + art.face.height * scale + (height - (dy + art.face.height * scale)) / 2f, height * 0.03f)
+        // The tell-tale isn't in the photograph, so it goes in the housing band
+        // below the dials, where the real warning-light row sits.
+        val faceBottom = dy + art.face.height * scale
+        val lampY = if (height - faceBottom > height * 0.08f) (faceBottom + height) / 2f else height * 0.94f
+        drawFanLamp(canvas, width / 2f, lampY, height * 0.028f)
     }
 
-    private fun drawArtNeedle(canvas: Canvas, needle: android.graphics.Bitmap, dial: ClusterAssets.Dial, fraction: Float) {
+    private fun drawDialNeedle(canvas: Canvas, dial: ClusterAssets.Dial, fraction: Float, active: Boolean) {
+        val needle = dial.needle ?: return
         val degrees = dial.startAngle + dial.sweepAngle * fraction.coerceIn(0f, 1f)
-        drawRotatedNeedle(canvas, needle, dial.cx, dial.cy, dial.r, degrees)
+        drawTaperedNeedle(canvas, dial.cx, dial.cy, degrees, needle, active)
     }
 
-    private fun drawArtClock(canvas: Canvas, art: ClusterAssets, dial: ClusterAssets.Dial) {
+    private fun drawArtClock(canvas: Canvas, g: ClusterAssets.Geometry, dial: ClusterAssets.Dial) {
         val now = Calendar.getInstance()
         val seconds = now.get(Calendar.SECOND) + now.get(Calendar.MILLISECOND) / 1000f
         val minutes = now.get(Calendar.MINUTE) + seconds / 60f
         val hours = now.get(Calendar.HOUR) + minutes / 60f
-        drawRotatedNeedle(canvas, art.needleShort, dial.cx, dial.cy, dial.r * 0.55f, hours * 30f - 90f)
-        drawRotatedNeedle(canvas, art.needleLong, dial.cx, dial.cy, dial.r * 0.8f, minutes * 6f - 90f)
-        art.needleSecond?.let { drawRotatedNeedle(canvas, it, dial.cx, dial.cy, dial.r * 0.88f, seconds * 6f - 90f) }
-        art.hub?.let {
-            val size = dial.r * 0.22f
-            matrix.reset()
-            matrix.postScale(size * 2 / it.width, size * 2 / it.height)
-            matrix.postTranslate(dial.cx - size, dial.cy - size)
-            canvas.drawBitmap(it, matrix, null)
-        }
+        g.hourNeedle?.let { drawTaperedNeedle(canvas, dial.cx, dial.cy, hours * 30f - 90f, it, true) }
+        g.minuteNeedle?.let { drawTaperedNeedle(canvas, dial.cx, dial.cy, minutes * 6f - 90f, it, true) }
+        // Sweeps continuously rather than ticking.
+        g.secondNeedle?.let { drawTaperedNeedle(canvas, dial.cx, dial.cy, seconds * 6f - 90f, it, true) }
     }
 
     /**
-     * Needle art is authored pointing straight up with its pivot in the
-     * middle of the bitmap, so it can be scaled to the dial and rotated about
-     * that pivot without any per-gauge trimming.
+     * Draws a needle as the flat tapered shape it actually is: a quad running
+     * outwards from [ClusterAssets.Needle.baseRadius] to the tip, shaded across
+     * its width and haloed the way the lit original is.
      */
-    private fun drawRotatedNeedle(
+    private fun drawTaperedNeedle(
         canvas: Canvas,
-        needle: android.graphics.Bitmap,
         cx: Float,
         cy: Float,
-        radius: Float,
         degrees: Float,
+        needle: ClusterAssets.Needle,
+        active: Boolean,
     ) {
-        val target = radius * 2f
-        val scale = target / needle.height
-        matrix.reset()
-        matrix.postTranslate(-needle.width / 2f, -needle.height / 2f)
-        matrix.postScale(scale, scale)
-        // Bitmap points up, angles are measured from the 3 o'clock direction.
-        matrix.postRotate(degrees + 90f)
-        matrix.postTranslate(cx, cy)
-        canvas.drawBitmap(needle, matrix, null)
+        val a = Math.toRadians(degrees.toDouble())
+        val ux = cos(a).toFloat()
+        val uy = sin(a).toFloat()
+        // Unit vector across the needle, for the taper and the shading.
+        val px = -uy
+        val py = ux
+
+        val baseX = cx + ux * needle.baseRadius
+        val baseY = cy + uy * needle.baseRadius
+        val tipX = cx + ux * needle.tipRadius
+        val tipY = cy + uy * needle.tipRadius
+
+        needlePath.reset()
+        needlePath.moveTo(baseX + px * needle.baseHalfWidth, baseY + py * needle.baseHalfWidth)
+        needlePath.lineTo(tipX + px * needle.tipHalfWidth, tipY + py * needle.tipHalfWidth)
+        needlePath.lineTo(tipX - px * needle.tipHalfWidth, tipY - py * needle.tipHalfWidth)
+        needlePath.lineTo(baseX - px * needle.baseHalfWidth, baseY - py * needle.baseHalfWidth)
+        needlePath.close()
+
+        if (active) {
+            glow.color = NEEDLE_HALO
+            glow.style = Paint.Style.STROKE
+            glow.strokeWidth = needle.baseHalfWidth * 1.6f
+            canvas.drawPath(needlePath, glow)
+        }
+
+        fill.shader = android.graphics.LinearGradient(
+            baseX - px * needle.baseHalfWidth, baseY - py * needle.baseHalfWidth,
+            baseX + px * needle.baseHalfWidth, baseY + py * needle.baseHalfWidth,
+            intArrayOf(NEEDLE_EDGE, NEEDLE_CREST, NEEDLE_EDGE),
+            floatArrayOf(0f, 0.45f, 1f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        fill.color = if (active) NEEDLE else INACTIVE
+        canvas.drawPath(needlePath, fill)
+        fill.shader = null
+    }
+
+    /**
+     * Redraws a counter window over the one printed in the photograph, so the
+     * live figure replaces the frozen one without disturbing its surround.
+     */
+    private fun drawCounterWindow(canvas: Canvas, rect: RectF, value: String, digitColor: Int) {
+        fill.color = WINDOW_BG
+        canvas.drawRect(rect, fill)
+        drawOdometerDigits(canvas, rect, value, digitColor, drawWindow = false)
     }
 
     // ------------------------------------------------------------------
@@ -528,7 +571,7 @@ class DashboardView @JvmOverloads constructor(
         val tailY = cy - sin(a).toFloat() * r * 0.15f
 
         if (active) {
-            stroke.color = NEEDLE_GLOW
+            stroke.color = NEEDLE_HALO
             stroke.strokeWidth = r * 0.075f
             canvas.drawLine(tailX, tailY, tipX, tipY, stroke)
         }
@@ -562,7 +605,4 @@ class DashboardView @JvmOverloads constructor(
         shownFuel += ((targetFuel ?: 0f) - shownFuel) * alpha
         if (abs(shownSpeed) < 0.01f) shownSpeed = 0f
     }
-
-    @Suppress("unused")
-    private fun distance(x1: Float, y1: Float, x2: Float, y2: Float) = hypot(x2 - x1, y2 - y1)
 }

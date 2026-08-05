@@ -7,30 +7,47 @@ import android.graphics.RectF
 import org.json.JSONObject
 
 /**
- * Photographic cluster artwork, if it has been dropped into
- * `assets/cluster/`. Drawing the real dial face as an image and compositing
- * only the needles on top is the one way this can look like the actual
- * instrument panel rather than a redrawing of it — vector primitives can
- * approximate the layout but never the material.
+ * Photographic cluster artwork from `assets/cluster/`.
  *
- * Everything is optional: with no artwork installed the view falls back to
- * drawing the gauges itself.
+ * The dial face is a photograph of the real instrument panel with its needles
+ * removed; only the needles, the counter windows and the tell-tale are drawn
+ * on top at runtime. That is what makes this read as the actual panel rather
+ * than as a redrawing of it — no amount of primitive-drawing reproduces the
+ * moulded plastic, the glass or the printing.
+ *
+ * Needles stay vector: they are flat tapered shapes, so drawing them is exact
+ * rather than approximate, and it avoids shipping and scaling sprite sheets.
+ *
+ * The whole thing is optional. With no artwork installed the view draws every
+ * gauge itself.
  */
 class ClusterAssets private constructor(
     val face: Bitmap,
-    val needleLong: Bitmap,
-    val needleShort: Bitmap,
-    val needleSecond: Bitmap?,
-    val hub: Bitmap?,
     val geometry: Geometry,
 ) {
-    /** Pixel coordinates within [face]; the view scales them to its own size. */
+    /**
+     * A needle's outline, in face pixels, measured from the dial centre along
+     * the pointing direction: it starts [baseRadius] out (the hub cap hides
+     * the root) and tapers from [baseHalfWidth] to [tipHalfWidth] at [tipRadius].
+     */
+    data class Needle(
+        val baseHalfWidth: Float,
+        val baseRadius: Float,
+        val tipHalfWidth: Float,
+        val tipRadius: Float,
+    )
+
+    /**
+     * A dial, in face pixels. [startAngle] is where the scale's minimum sits
+     * and [sweepAngle] how far it runs, both in degrees measured from the
+     * three o'clock direction, clockwise positive.
+     */
     data class Dial(
         val cx: Float,
         val cy: Float,
-        val r: Float,
         val startAngle: Float,
         val sweepAngle: Float,
+        val needle: Needle?,
     )
 
     data class Geometry(
@@ -39,73 +56,68 @@ class ClusterAssets private constructor(
         val speedo: Dial?,
         val tacho: Dial?,
         val temp: Dial?,
+        val hourNeedle: Needle?,
+        val minuteNeedle: Needle?,
+        val secondNeedle: Needle?,
         val odometerRect: RectF?,
         val tripRect: RectF?,
-        val resetKnob: Dial?,
+        val resetKnob: RectF?,
     )
 
     companion object {
         private const val DIR = "cluster"
 
-        fun load(context: Context): ClusterAssets? {
+        fun load(context: Context): ClusterAssets? = runCatching {
             val assets = context.assets
-            val names = runCatching { assets.list(DIR)?.toSet() }.getOrNull() ?: return null
-            if (!names.contains("cluster_face.png")) return null
+            val names = assets.list(DIR)?.toSet() ?: return null
+            if (!names.contains("cluster_face.png") || !names.contains("cluster_geometry.json")) return null
 
-            fun bitmap(name: String): Bitmap? = runCatching {
-                assets.open("$DIR/$name").use { BitmapFactory.decodeStream(it) }
-            }.getOrNull()
-
-            val face = bitmap("cluster_face.png") ?: return null
-            val long = bitmap("needle_long.png") ?: return null
-            val short = bitmap("needle_short.png") ?: long
-            val geometryJson = runCatching {
-                assets.open("$DIR/cluster_geometry.json").use { it.readBytes().decodeToString() }
-            }.getOrNull() ?: return null
-
-            val geometry = runCatching { parseGeometry(JSONObject(geometryJson)) }.getOrNull() ?: return null
-
-            return ClusterAssets(
-                face = face,
-                needleLong = long,
-                needleShort = short,
-                needleSecond = bitmap("needle_second.png"),
-                hub = bitmap("hub.png"),
-                geometry = geometry,
-            )
-        }
+            val face = assets.open("$DIR/cluster_face.png").use { BitmapFactory.decodeStream(it) } ?: return null
+            val json = assets.open("$DIR/cluster_geometry.json").use { it.readBytes().decodeToString() }
+            ClusterAssets(face, parseGeometry(JSONObject(json)))
+        }.getOrNull()
 
         private fun parseGeometry(root: JSONObject): Geometry {
+            fun needle(o: JSONObject?): Needle? {
+                val n = o?.optJSONObject("needle") ?: return null
+                return Needle(
+                    baseHalfWidth = n.optDouble("baseHalfWidth", 4.0).toFloat(),
+                    baseRadius = n.optDouble("baseRadius", 20.0).toFloat(),
+                    tipHalfWidth = n.optDouble("tipHalfWidth", 1.5).toFloat(),
+                    tipRadius = n.optDouble("tipRadius", 100.0).toFloat(),
+                )
+            }
+
             fun dial(key: String): Dial? {
                 val o = root.optJSONObject(key) ?: return null
                 return Dial(
                     cx = o.optDouble("cx").toFloat(),
                     cy = o.optDouble("cy").toFloat(),
-                    r = o.optDouble("r").toFloat(),
-                    startAngle = o.optDouble("startAngle", 150.0).toFloat(),
-                    sweepAngle = o.optDouble("sweepAngle", 240.0).toFloat(),
+                    startAngle = o.optDouble("startAngle", 135.0).toFloat(),
+                    sweepAngle = o.optDouble("sweepAngle", 270.0).toFloat(),
+                    needle = needle(o),
                 )
             }
 
             fun rect(owner: String, key: String): RectF? {
-                val array = root.optJSONObject(owner)?.optJSONArray(key) ?: return null
-                if (array.length() < 4) return null
+                val a = root.optJSONObject(owner)?.optJSONArray(key) ?: return null
+                if (a.length() < 4) return null
                 return RectF(
-                    array.optDouble(0).toFloat(),
-                    array.optDouble(1).toFloat(),
-                    array.optDouble(2).toFloat(),
-                    array.optDouble(3).toFloat(),
+                    a.optDouble(0).toFloat(),
+                    a.optDouble(1).toFloat(),
+                    a.optDouble(2).toFloat(),
+                    a.optDouble(3).toFloat(),
                 )
             }
 
-            val speedo = root.optJSONObject("speedo")
-            val knob = speedo?.optJSONObject("resetKnob")?.let {
-                Dial(
-                    cx = it.optDouble("cx").toFloat(),
-                    cy = it.optDouble("cy").toFloat(),
-                    r = it.optDouble("r").toFloat(),
-                    startAngle = 0f,
-                    sweepAngle = 0f,
+            val clock = root.optJSONObject("clock")
+            fun clockNeedle(key: String): Needle? {
+                val n = clock?.optJSONObject(key) ?: return null
+                return Needle(
+                    baseHalfWidth = n.optDouble("baseHalfWidth", 3.0).toFloat(),
+                    baseRadius = n.optDouble("baseRadius", 12.0).toFloat(),
+                    tipHalfWidth = n.optDouble("tipHalfWidth", 1.0).toFloat(),
+                    tipRadius = n.optDouble("tipRadius", 100.0).toFloat(),
                 )
             }
 
@@ -115,9 +127,12 @@ class ClusterAssets private constructor(
                 speedo = dial("speedo"),
                 tacho = dial("tacho"),
                 temp = dial("temp"),
+                hourNeedle = clockNeedle("hourNeedle"),
+                minuteNeedle = clockNeedle("minuteNeedle"),
+                secondNeedle = clockNeedle("secondNeedle"),
                 odometerRect = rect("speedo", "odometerRect"),
                 tripRect = rect("speedo", "tripRect"),
-                resetKnob = knob,
+                resetKnob = rect("speedo", "resetKnobRect"),
             )
         }
     }
