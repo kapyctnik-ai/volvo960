@@ -109,7 +109,7 @@ class DashboardView @JvmOverloads constructor(
     }
     private val digits = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
-        typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+        typeface = Typeface.MONOSPACE
     }
     private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -202,6 +202,12 @@ class DashboardView @JvmOverloads constructor(
         }
         g.voltageRect?.let {
             drawReadout(canvas, it, batteryVolts?.let { v -> "%.1fV".format(v) } ?: "--.-V", batteryVolts != null)
+        }
+        // Fuel level is drawn only when the car actually reports it: this ECU
+        // may well not, and an empty placeholder on the housing would just be
+        // clutter that never fills in.
+        g.fuelRect?.let { rect ->
+            targetFuel?.let { drawReadout(canvas, rect, "${it.toInt()}", true) }
         }
 
         g.speedo?.let { drawDialNeedle(canvas, it, fraction(shownSpeed, 0f, SPEED_MAX), targetSpeed != null) }
@@ -504,10 +510,11 @@ class DashboardView @JvmOverloads constructor(
         if (cells == 0) return
         val cellWidth = rect.width() / cells
         digits.color = digitColor
-        digits.textSize = rect.height() * 1.15f
+        // Sized to sit in the printed window rather than shout over it.
+        digits.textSize = rect.height() * 0.88f
         for ((index, ch) in value.withIndex()) {
             val x = rect.left + cellWidth * (index + 0.5f)
-            canvas.drawText(ch.toString(), x, rect.centerY() + digits.textSize * 0.36f, digits)
+            canvas.drawText(ch.toString(), x, rect.centerY() + digits.textSize * 0.35f, digits)
             if (drawWindow && index < cells - 1) {
                 stroke.color = 0xFF14191B.toInt()
                 stroke.strokeWidth = rect.height() * 0.05f
