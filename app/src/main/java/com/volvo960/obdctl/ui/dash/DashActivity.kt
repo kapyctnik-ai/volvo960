@@ -103,6 +103,18 @@ class DashActivity : AppCompatActivity() {
                     }
                 }
                 launch {
+                    // Traffic goes on screen until a gauge actually has a value,
+                    // then gets out of the way.
+                    combine(app.logger.recent, app.vehicleData.state) { lines, vehicle ->
+                        val haveReading = vehicle.coolantTempC != null || vehicle.rpm != null ||
+                            vehicle.speedKmh != null || vehicle.fuelLevelPercent != null
+                        if (haveReading) emptyList() else lines.takeLast(14)
+                    }.collect { lines ->
+                        binding.textDebugLog.text = lines.joinToString("\n")
+                        binding.textDebugLog.visibility = if (lines.isEmpty()) View.GONE else View.VISIBLE
+                    }
+                }
+                launch {
                     // Connection state alone flickers while the adapter settles,
                     // so the last complaint is kept on screen until a reading
                     // actually succeeds. A message that vanishes before it can

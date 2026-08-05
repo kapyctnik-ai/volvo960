@@ -41,7 +41,6 @@ class VehicleDataPoller(
     }
 
     private companion object {
-        const val PID_SUPPORTED = "0100"
         const val PID_COOLANT = "0105"
         const val PID_RPM = "010C"
         const val PID_SPEED = "010D"
@@ -70,9 +69,6 @@ class VehicleDataPoller(
     private var job: Job? = null
     private var lastSpeedAtMs = 0L
     private var consecutiveFailures = 0
-
-    /** PIDs the ECU said it implements. Null until asked, empty if it wouldn't say. */
-    private var supported: Set<String>? = null
 
     fun start() {
         if (job?.isActive == true) return
@@ -108,7 +104,6 @@ class VehicleDataPoller(
             if (transport.connectionState.value !is ConnectionState.Connected) {
                 _state.update { VehicleState(tripKm = it.tripKm, totalKm = it.totalKm) }
                 lastSpeedAtMs = 0L
-                supported = null
                 consecutiveFailures = 0
                 delay(1_000)
                 continue
@@ -120,33 +115,26 @@ class VehicleDataPoller(
                 continue
             }
 
-            if (supported == null) supported = probeSupportedPids()
-
             var readAnything = false
-            if (wanted(PID_RPM)) {
-                read(PID_RPM, "0C", 2)?.let { (a, b) ->
-                    readAnything = true
-                    _state.update { it.copy(rpm = ((a * 256) + b) / 4) }
-                }
+            // Coolant first: it is the one reading this car is known to answer,
+            // so a working link shows up on the dashboard immediately even if
+            // everything else is ignored.
+            read(PID_COOLANT, "05", 1)?.let { (a, _) ->
+                readAnything = true
+                _state.update { it.copy(coolantTempC = a - 40) }
             }
-            if (wanted(PID_SPEED)) {
-                read(PID_SPEED, "0D", 1)?.let { (a, _) ->
-                    readAnything = true
-                    _state.update { it.copy(speedKmh = a) }
-                    accumulateTrip(a)
-                }
+            read(PID_RPM, "0C", 2)?.let { (a, b) ->
+                readAnything = true
+                _state.update { it.copy(rpm = ((a * 256) + b) / 4) }
             }
-            if (wanted(PID_COOLANT)) {
-                read(PID_COOLANT, "05", 1)?.let { (a, _) ->
-                    readAnything = true
-                    _state.update { it.copy(coolantTempC = a - 40) }
-                }
+            read(PID_SPEED, "0D", 1)?.let { (a, _) ->
+                readAnything = true
+                _state.update { it.copy(speedKmh = a) }
+                accumulateTrip(a)
             }
-            if (wanted(PID_FUEL)) {
-                read(PID_FUEL, "2F", 1)?.let { (a, _) ->
-                    readAnything = true
-                    _state.update { it.copy(fuelLevelPercent = a * 100 / 255) }
-                }
+            read(PID_FUEL, "2F", 1)?.let { (a, _) ->
+                readAnything = true
+                _state.update { it.copy(fuelLevelPercent = a * 100 / 255) }
             }
 
             if (readAnything) {
@@ -157,34 +145,6 @@ class VehicleDataPoller(
             }
             delay(if (consecutiveFailures >= BACKOFF_AFTER_FAILURES) BACKOFF_MS else CYCLE_PAUSE_MS)
         }
-    }
-
-    /**
-     * Mode 01 PID 00 returns a bitmap of which PIDs 01–20 the ECU implements.
-     * Asking once saves repeatedly requesting readings this car never answers,
-     * each of which costs a full timeout.
-     */
-    private suspend fun probeSupportedPids(): Set<String> {
-        val result = transport.sendRaw(PID_SUPPORTED, REQUEST_TIMEOUT_MS, dropOnFailure = false)
-        if (result !is Elm327Transport.CommandResult.Success) return emptySet()
-        val bytes = hexBytes(result.response)
-        val at = bytes.indexOfFirst { it == "41" }
-        // Bounds first: indexing before checking threw, and the exception killed
-        // the polling coroutine outright, so every gauge stayed blank forever.
-        if (at == -1 || bytes.size < at + 6 || bytes[at + 1] != "00") return emptySet()
-        val mask = (2..5).fold(0L) { acc, i ->
-            (acc shl 8) or (bytes.getOrNull(at + i)?.toLongOrNull(16) ?: return emptySet())
-        }
-        // Bit 31 is PID 01, bit 0 is PID 20.
-        return (1..32).mapNotNull { pid ->
-            if ((mask shr (32 - pid)) and 1L == 1L) "01%02X".format(pid) else null
-        }.toSet()
-    }
-
-    /** Unknown support is treated as "try it": better a slow read than a blank gauge. */
-    private fun wanted(pid: String): Boolean {
-        val s = supported ?: return true
-        return s.isEmpty() || pid in s
     }
 
     /** Adds the distance covered since the previous speed sample. */

@@ -1,6 +1,10 @@
 package com.volvo960.obdctl.transport
 
 import android.content.Context
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import java.io.File
 import java.io.FileWriter
 import java.text.SimpleDateFormat
@@ -19,7 +23,17 @@ class CommandLogger(context: Context) {
         "obd_command_log.txt"
     )
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+    private val clockFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
     private val lock = Any()
+
+    private val _recent = MutableStateFlow<List<String>>(emptyList())
+
+    /**
+     * The tail of the traffic, kept in memory so it can be put on screen. When
+     * a reading doesn't appear there is no way to tell a request that was never
+     * sent from one the car ignored without seeing the actual exchange.
+     */
+    val recent: StateFlow<List<String>> = _recent.asStateFlow()
 
     fun logSent(command: String) = append("TX", command)
 
@@ -28,6 +42,7 @@ class CommandLogger(context: Context) {
     fun logError(message: String) = append("ERR", message)
 
     private fun append(tag: String, text: String) {
+        _recent.update { (it + "${clockFormat.format(Date())} $tag $text").takeLast(RECENT_LINES) }
         synchronized(lock) {
             try {
                 FileWriter(logFile, true).use { writer ->
@@ -44,8 +59,13 @@ class CommandLogger(context: Context) {
     fun file(): File = logFile
 
     fun clear() {
+        _recent.value = emptyList()
         synchronized(lock) {
             try { logFile.writeText("") } catch (_: Exception) { }
         }
+    }
+
+    private companion object {
+        const val RECENT_LINES = 40
     }
 }
