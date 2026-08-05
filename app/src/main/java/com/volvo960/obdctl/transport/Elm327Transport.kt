@@ -165,6 +165,38 @@ class Elm327Transport(private val logger: CommandLogger) {
         return result
     }
 
+    /**
+     * Runs a whole script under one lock and reports each exchange separately,
+     * so a hand-driven probe can be read command by command. [sendSequence]
+     * merges the replies, which is right for actuators and useless for
+     * working out an unknown reply format.
+     *
+     * Never drops the link: probing is expected to include commands the car
+     * refuses.
+     */
+    suspend fun sendScriptVerbose(
+        commands: List<String>,
+        timeoutMs: Long = DEFAULT_COMMAND_TIMEOUT_MS,
+        interCommandDelayMs: Long = 90L,
+    ): List<Pair<String, String>> {
+        if (commands.isEmpty()) return emptyList()
+        if (connectionState.value !is ConnectionState.Connected) {
+            return listOf("" to "нет соединения")
+        }
+        return mutex.withLock {
+            val transcript = mutableListOf<Pair<String, String>>()
+            for ((index, command) in commands.withIndex()) {
+                val reply = when (val r = rawExchange(command, timeoutMs)) {
+                    is CommandResult.Success -> r.response.ifBlank { "(пусто)" }
+                    is CommandResult.Error -> "ОШИБКА: ${r.message}"
+                }
+                transcript += command to reply
+                if (index != commands.lastIndex) delay(interCommandDelayMs)
+            }
+            transcript
+        }
+    }
+
     private suspend fun connectLoop(device: BluetoothDevice) {
         while (autoReconnect) {
             _connectionState.value = ConnectionState.Connecting

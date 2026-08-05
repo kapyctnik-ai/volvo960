@@ -25,6 +25,41 @@ import kotlinx.coroutines.launch
  */
 class ConsoleActivity : AppCompatActivity() {
 
+    private companion object {
+        /**
+         * Reproduces how a tool already working on this car asks Motronic for
+         * live data: it does not use generic OBD-II Mode 01 at all, but its own
+         * `AE01` request under Volvo's keyword-D3B0 protocol.
+         *
+         * Taken from that tool's own trace, with the tester-present that opens
+         * communications made explicit — in the trace the bus initialisation
+         * appears against the header command, which cannot itself cause it.
+         */
+        val MOTRONIC_PROBE = listOf(
+            "ATPC",
+            "ATD",
+            "ATZ",
+            "ATL0",
+            "ATS0",
+            "ATSP 3",
+            "ATH1",
+            "ATAL",
+            "ATKW0",
+            "ATSR 13",
+            "ATAT 1",
+            "ATST 32",
+            "ATE0",
+            "ATIIA 7A",
+            "ATWM 82 7A 13 A1",
+            "ATSH 82 7A 13",
+            "A1",
+            "ATKW",
+            "ATSH 83 7A 13",
+            "AE01",
+            "AE01",
+        )
+    }
+
     private lateinit var binding: ActivityConsoleBinding
     private var lastCommand: String? = null
 
@@ -50,6 +85,7 @@ class ConsoleActivity : AppCompatActivity() {
                     .putExtra(ActuatorEditActivity.EXTRA_PREFILL_COMMAND, cmd)
             )
         }
+        binding.buttonRunMotronicProbe.setOnClickListener { runScript(MOTRONIC_PROBE) }
         binding.buttonShareLog.setOnClickListener { shareLog() }
         binding.buttonClearLog.setOnClickListener {
             (application as VolvoApp).logger.clear()
@@ -76,9 +112,15 @@ class ConsoleActivity : AppCompatActivity() {
 
     private fun sendCurrentInput() {
         val app = application as VolvoApp
-        val command = binding.inputRawCommand.text?.toString()?.trim().orEmpty()
-        if (command.isEmpty()) return
+        val raw = binding.inputRawCommand.text?.toString().orEmpty()
+        val commands = raw.split('\n').map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
+        if (commands.isEmpty()) return
         binding.inputRawCommand.setText("")
+        if (commands.size > 1) {
+            runScript(commands)
+            return
+        }
+        val command = commands.first()
         appendLine("> $command")
         lifecycleScope.launch {
             when (val result = app.transport.sendRaw(command)) {
@@ -89,6 +131,26 @@ class ConsoleActivity : AppCompatActivity() {
                 }
                 is Elm327Transport.CommandResult.Error -> appendLine("ошибка: ${result.message}")
             }
+        }
+    }
+
+    /**
+     * Runs a whole sequence under one lock and prints each exchange, so an
+     * unknown reply format can be read off against the request that produced
+     * it. Nothing else can slip onto the bus mid-run.
+     */
+    private fun runScript(commands: List<String>) {
+        val app = application as VolvoApp
+        appendLine("=== прогон, ${commands.size} команд ===")
+        lifecycleScope.launch {
+            val transcript = app.transport.sendScriptVerbose(commands, timeoutMs = 9_000L)
+            for ((command, reply) in transcript) {
+                appendLine("> $command")
+                appendLine("  $reply")
+            }
+            appendLine("=== конец прогона ===")
+            lastCommand = commands.lastOrNull()
+            binding.buttonSaveAsActuator.isEnabled = lastCommand != null
         }
     }
 

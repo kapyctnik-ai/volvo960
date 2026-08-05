@@ -69,6 +69,8 @@
     <string name="action_save_as_actuator">Сохранить как актуатор</string>
     <string name="console_no_response_yet">Ответов пока нет</string>
     <string name="console_not_connected">Сначала подключитесь к адаптеру</string>
+    <string name="action_probe_motronic">Прогон: Motronic AE01</string>
+    <string name="console_hint_multiline">Можно вставить несколько строк — уйдут одним пакетом</string>
     <string name="action_share_log">Выгрузить лог</string>
     <string name="action_clear_log">Очистить лог</string>
     <string name="log_cleared">Лог очищен</string>
