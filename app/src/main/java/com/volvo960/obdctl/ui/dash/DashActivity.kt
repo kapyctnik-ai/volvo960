@@ -96,6 +96,7 @@ class DashActivity : AppCompatActivity() {
                             coolantTempC = vehicle.coolantTempC,
                             atfTempC = vehicle.atfTempC,
                             fuelPercent = vehicle.fuelLevelPercent,
+                            batteryVolts = vehicle.batteryVolts,
                             tripKm = vehicle.tripKm,
                             totalKm = vehicle.totalKm,
                             fanOn = fanOn,
@@ -107,7 +108,7 @@ class DashActivity : AppCompatActivity() {
                     // then gets out of the way.
                     combine(app.logger.recent, app.vehicleData.state) { lines, vehicle ->
                         val haveReading = vehicle.coolantTempC != null || vehicle.rpm != null ||
-                            vehicle.speedKmh != null || vehicle.fuelLevelPercent != null
+                            vehicle.speedKmh != null || vehicle.batteryVolts != null
                         if (haveReading) emptyList() else lines.takeLast(14)
                     }.collect { lines ->
                         binding.textDebugLog.text = lines.joinToString("\n")

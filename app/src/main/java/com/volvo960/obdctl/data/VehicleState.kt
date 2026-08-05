@@ -10,6 +10,7 @@ data class VehicleState(
     val rpm: Int? = null,
     val coolantTempC: Int? = null,
     val atfTempC: Int? = null,
+    val batteryVolts: Double? = null,
     val fuelLevelPercent: Int? = null,
     val tripKm: Double = 0.0,
     val totalKm: Double = 0.0,

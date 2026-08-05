@@ -62,6 +62,9 @@ class ClusterAssets private constructor(
         val odometerRect: RectF?,
         val tripRect: RectF?,
         val resetKnob: RectF?,
+        /** Where the turn-signal arrows sit; used for the two numeric readouts. */
+        val coolantRect: RectF?,
+        val voltageRect: RectF?,
     )
 
     companion object {
@@ -133,6 +136,8 @@ class ClusterAssets private constructor(
                 odometerRect = rect("speedo", "odometerRect"),
                 tripRect = rect("speedo", "tripRect"),
                 resetKnob = rect("speedo", "resetKnobRect"),
+                coolantRect = rect("readouts", "coolantRect"),
+                voltageRect = rect("readouts", "voltageRect"),
             )
         }
     }

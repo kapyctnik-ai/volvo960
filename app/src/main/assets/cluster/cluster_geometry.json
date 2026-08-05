@@ -1,18 +1,19 @@
 {
-  "_comment": "Coordinates in cluster_face.png pixels (2020x620). Angles in degrees from the 3 o'clock direction, clockwise positive.",
-  "fuel":  { "cx": 143,  "cy": 479, "startAngle": -140, "sweepAngle": 110,
-             "needle": { "baseHalfWidth": 4.5, "baseRadius": 25, "tipHalfWidth": 1.5, "tipRadius": 78 } },
-  "clock": { "cx": 488,  "cy": 337,
+  "_comment": "Coordinates in cluster_face.png pixels (1490x582). Angles in degrees from the 3 o'clock direction, clockwise positive. The face is cropped to the three round dials, keeping the speedometer's own bezel whole, so it fills a phone's width; the fuel and temperature arcs fall outside it and temperature is shown as a readout instead.",
+  "clock": { "cx": 238,  "cy": 319,
              "hourNeedle":   { "baseHalfWidth": 4.5, "baseRadius": 14, "tipHalfWidth": 1.5,  "tipRadius": 88 },
              "minuteNeedle": { "baseHalfWidth": 3.5, "baseRadius": 14, "tipHalfWidth": 1.25, "tipRadius": 132 },
              "secondNeedle": { "baseHalfWidth": 1.2, "baseRadius": 10, "tipHalfWidth": 0.6,  "tipRadius": 148 } },
-  "speedo":{ "cx": 998,  "cy": 334, "startAngle": 135, "sweepAngle": 270,
+  "speedo":{ "cx": 748,  "cy": 316, "startAngle": 135, "sweepAngle": 270,
              "needle": { "baseHalfWidth": 9, "baseRadius": 44, "tipHalfWidth": 2, "tipRadius": 205 },
-             "odometerRect": [905, 250, 1092, 298],
-             "tripRect": [958, 394, 1048, 420],
-             "resetKnobRect": [295, 520, 340, 562] },
-  "tacho": { "cx": 1502, "cy": 333, "startAngle": 135, "sweepAngle": 270,
+             "odometerRect": [655, 232, 842, 280],
+             "tripRect": [708, 376, 798, 402],
+             "resetKnobRect": [45, 502, 90, 544] },
+  "tacho": { "cx": 1252, "cy": 315, "startAngle": 135, "sweepAngle": 270,
              "needle": { "baseHalfWidth": 7, "baseRadius": 34, "tipHalfWidth": 1.75, "tipRadius": 124 } },
-  "temp":  { "cx": 1874, "cy": 479, "startAngle": -140, "sweepAngle": 110,
-             "needle": { "baseHalfWidth": 4.5, "baseRadius": 25, "tipHalfWidth": 1.5, "tipRadius": 78 } }
+  "readouts": {
+    "_comment": "Where the turn-signal arrows sit on the real cluster.",
+    "coolantRect": [368, 82, 532, 142],
+    "voltageRect": [978, 82, 1142, 142]
+  }
 }

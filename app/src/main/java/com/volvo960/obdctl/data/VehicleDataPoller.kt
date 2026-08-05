@@ -45,6 +45,8 @@ class VehicleDataPoller(
         const val PID_RPM = "010C"
         const val PID_SPEED = "010D"
         const val PID_FUEL = "012F"
+        /** Adapter-side reading, so it answers even when the ECU will not. */
+        const val ADAPTER_VOLTAGE = "ATRV"
 
         /**
          * Generous on purpose: the first request after a quiet spell performs
@@ -136,6 +138,10 @@ class VehicleDataPoller(
                 readAnything = true
                 _state.update { it.copy(fuelLevelPercent = a * 100 / 255) }
             }
+            readVoltage()?.let { volts ->
+                readAnything = true
+                _state.update { it.copy(batteryVolts = volts) }
+            }
 
             if (readAnything) {
                 consecutiveFailures = 0
@@ -181,6 +187,14 @@ class VehicleDataPoller(
         if (wantBytes == 1) return first to 0
         val second = bytes.getOrNull(at + 3)?.toIntOrNull(16) ?: return null
         return first to second
+    }
+
+    /** `ATRV` answers like "12.6V"; the adapter measures it, not the ECU. */
+    private suspend fun readVoltage(): Double? {
+        val result = transport.sendRaw(ADAPTER_VOLTAGE, 3_000L, dropOnFailure = false)
+        if (result !is Elm327Transport.CommandResult.Success) return null
+        return Regex("([0-9]+\\.?[0-9]*)\\s*V", RegexOption.IGNORE_CASE)
+            .find(result.response)?.groupValues?.get(1)?.toDoubleOrNull()
     }
 
     private fun hexBytes(response: String): List<String> =

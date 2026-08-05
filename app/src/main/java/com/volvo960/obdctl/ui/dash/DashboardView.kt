@@ -55,6 +55,10 @@ class DashboardView @JvmOverloads constructor(
         const val LAMP_OFF = 0xFF161C1E.toInt()
         const val LAMP_ON = 0xFFFFA000.toInt()
         const val INACTIVE = 0xFF2C3D40.toInt()
+        // Segment display: lit, lit-but-stale, and the faint unlit ghosts.
+        const val SEGMENT_ON = 0xFF3FE9F0.toInt()
+        const val SEGMENT_IDLE = 0xFF2A6E73.toInt()
+        const val SEGMENT_OFF = 0x223FE9F0
 
         const val SPEED_MAX = 240f
         const val RPM_MAX = 7000f
@@ -86,6 +90,7 @@ class DashboardView @JvmOverloads constructor(
 
     private var tripKm = 0.0
     private var totalKm = 0.0
+    private var batteryVolts: Double? = null
     private var fanOn = false
     private var lastFrameNs = 0L
 
@@ -145,6 +150,7 @@ class DashboardView @JvmOverloads constructor(
         coolantTempC: Int?,
         atfTempC: Int?,
         fuelPercent: Int?,
+        batteryVolts: Double?,
         tripKm: Double,
         totalKm: Double,
         fanOn: Boolean,
@@ -153,6 +159,7 @@ class DashboardView @JvmOverloads constructor(
         targetRpm = rpm?.toFloat()
         targetCoolant = coolantTempC?.toFloat() ?: atfTempC?.toFloat()
         targetFuel = fuelPercent?.toFloat()
+        this.batteryVolts = batteryVolts
         this.tripKm = tripKm
         this.totalKm = totalKm
         this.fanOn = fanOn
@@ -187,6 +194,15 @@ class DashboardView @JvmOverloads constructor(
         val g = art.geometry
         g.odometerRect?.let { drawCounterWindow(canvas, it, "%06d".format(totalKm.toInt()), WINDOW_DIGIT) }
         g.tripRect?.let { drawCounterWindow(canvas, it, "%05.1f".format(tripKm), WINDOW_TRIP_DIGIT) }
+
+        // Temperature and voltage are figures, not dials — their arcs are
+        // outside the crop — and they go where the turn-signal arrows are.
+        g.coolantRect?.let {
+            drawReadout(canvas, it, targetCoolant?.let { c -> "${c.toInt()}°C" } ?: "--°C", targetCoolant != null)
+        }
+        g.voltageRect?.let {
+            drawReadout(canvas, it, batteryVolts?.let { v -> "%.1fV".format(v) } ?: "--.-V", batteryVolts != null)
+        }
 
         g.speedo?.let { drawDialNeedle(canvas, it, fraction(shownSpeed, 0f, SPEED_MAX), targetSpeed != null) }
         g.tacho?.let { drawDialNeedle(canvas, it, fraction(shownRpm, 0f, RPM_MAX), targetRpm != null) }
@@ -281,6 +297,23 @@ class DashboardView @JvmOverloads constructor(
         fill.color = if (active) NEEDLE else INACTIVE
         canvas.drawPath(needlePath, fill)
         fill.shader = null
+    }
+
+    /**
+     * A seven-segment readout, drawn segment by segment rather than as text so
+     * the unlit segments can show faintly behind the lit ones — that ghosting
+     * is what makes a segment display read as one.
+     */
+    private fun drawReadout(canvas: Canvas, rect: RectF, value: String, active: Boolean) {
+        SevenSegment.draw(
+            canvas = canvas,
+            bounds = rect,
+            textToDraw = value,
+            onColor = if (active) SEGMENT_ON else SEGMENT_IDLE,
+            offColor = SEGMENT_OFF,
+            paint = fill,
+        )
+        fill.style = Paint.Style.FILL
     }
 
     /**
