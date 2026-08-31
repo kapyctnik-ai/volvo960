@@ -53,7 +53,7 @@
     <string name="tile_consumption">Расход</string>
     <string name="tile_flow">Расход</string>
     <string name="tile_average">Средний расход</string>
-    <string name="tile_fuel_level">Уровень топлива</string>
+    <string name="tile_throttle">Дроссель</string>
     <string name="tile_trip">Trip (удержать — сброс)</string>
     <string name="tile_total">Пробег</string>
     <string name="tile_load">Нагрузка</string>

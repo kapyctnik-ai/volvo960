@@ -76,7 +76,6 @@ class VehicleDataPoller(
         const val PID_IAT = "010F"
         const val PID_MAF = "0110"
         const val PID_THROTTLE = "0111"
-        const val PID_FUEL_LEVEL = "012F"
         const val PID_FUEL_RATE = "015E"
 
         /**
@@ -114,6 +113,13 @@ class VehicleDataPoller(
         const val STOICH_AFR = 14.7
         const val PETROL_G_PER_L = 745.0
         const val AIR_GAS_CONSTANT = 0.287
+
+        /** How far above the calibrated closed position still counts as shut, %. */
+        const val THROTTLE_CLOSED_MARGIN = 3
+        /** Above this the ECU cuts fuel on a closed throttle... */
+        const val RPM_FUEL_CUT = 1_300
+        /** ...and below this it puts it back, so the engine keeps running. */
+        const val RPM_FUEL_RESUME = 1_100
     }
 
     private val _state = MutableStateFlow(
@@ -138,6 +144,9 @@ class VehicleDataPoller(
     private var longTrim: Double? = null
     private var lastMapKpa: Int? = null
     private var slowCursor = 0
+    /** Lowest throttle reading seen this session — the sensor's closed position. */
+    private var closedThrottlePercent = 100
+    private var overrunActive = false
     private var responseHint = true
     private var hintProbes = 0
     /** Which consumption tier answered; set once, so the others stop being asked. */
@@ -203,6 +212,8 @@ class VehicleDataPoller(
                 lockedSource = null
                 responseHint = true
                 hintProbes = 0
+                closedThrottlePercent = 100
+                overrunActive = false
                 delay(1_000)
                 continue
             }
@@ -231,6 +242,16 @@ class VehicleDataPoller(
                 readAnything = true
                 _state.update { it.copy(coolantTempC = a - 40) }
             }
+
+            // Throttle is in the fast pass because the fuel calculation needs
+            // it: a closed throttle is half of what proves the injectors are
+            // shut. Left in the slow rotation it would miss whole coasts.
+            val throttle = read(PID_THROTTLE, 0x11, 1)?.let { (a, _) -> a * 100 / 255 }
+            if (throttle != null) {
+                readAnything = true
+                if (throttle < closedThrottlePercent) closedThrottlePercent = throttle
+            }
+            _state.update { it.copy(throttlePercent = throttle) }
 
             val fuel = readFuelRate()
             if (fuel != null) readAnything = true
@@ -266,22 +287,16 @@ class VehicleDataPoller(
      * more than the readings that do.
      */
     private suspend fun readSlowOne(): Boolean {
-        val slot = slowCursor % 6
+        val slot = slowCursor % 4
         slowCursor++
         return when (slot) {
-            0 -> read(PID_FUEL_LEVEL, 0x2F, 1)?.let { (a, _) ->
-                _state.update { it.copy(fuelLevelPercent = a * 100 / 255) }
-            } != null
-            1 -> read(PID_ENGINE_LOAD, 0x04, 1)?.let { (a, _) ->
+            0 -> read(PID_ENGINE_LOAD, 0x04, 1)?.let { (a, _) ->
                 _state.update { it.copy(engineLoadPercent = a * 100 / 255) }
             } != null
-            2 -> read(PID_IAT, 0x0F, 1)?.let { (a, _) ->
+            1 -> read(PID_IAT, 0x0F, 1)?.let { (a, _) ->
                 _state.update { it.copy(intakeTempC = a - 40) }
             } != null
-            3 -> read(PID_THROTTLE, 0x11, 1)?.let { (a, _) ->
-                _state.update { it.copy(throttlePercent = a * 100 / 255) }
-            } != null
-            4 -> read(PID_SHORT_TRIM, 0x06, 1)?.let { (a, _) ->
+            2 -> read(PID_SHORT_TRIM, 0x06, 1)?.let { (a, _) ->
                 shortTrim = (a - 128) * 100.0 / 128.0
             } != null
             else -> read(PID_LONG_TRIM, 0x07, 1)?.let { (a, _) ->
@@ -324,6 +339,19 @@ class VehicleDataPoller(
 
     /** Litres per hour, by whichever tier the car supports. */
     private suspend fun readFuelRate(): Pair<Double, FuelSource>? {
+        val rate = measuredFuelRate()
+        // The ECU's own figure already knows about the cut-off; only the
+        // air-derived tiers need correcting.
+        if (rate != null && rate.second != FuelSource.ECU_FUEL_RATE) {
+            overrunActive = onOverrun()
+            if (overrunActive) return 0.0 to rate.second
+        } else {
+            overrunActive = false
+        }
+        return rate
+    }
+
+    private suspend fun measuredFuelRate(): Pair<Double, FuelSource>? {
         // Tried by what actually answers, not by what the bitmap claims: an
         // ECU whose bitmap under-reports would otherwise never be asked. Once
         // a tier answers it is locked in — retrying the better tiers on every
@@ -354,6 +382,38 @@ class VehicleDataPoller(
         val litresPerSecond = rpm * DISPLACEMENT_L * ASSUMED_VE / 120.0
         val massGs = map * litresPerSecond / (AIR_GAS_CONSTANT * (iat + 273.15))
         return litresPerHour(massGs) to FuelSource.SPEED_DENSITY
+    }
+
+    /**
+     * True while the engine is being driven by the car rather than driving it,
+     * with the injectors shut — coasting in gear off the throttle.
+     *
+     * This matters because every tier of the consumption calculation measures
+     * *air*, and on the overrun the engine pumps plenty of air while burning
+     * nothing at all: Motronic cuts the injectors entirely. Without this the
+     * dashboard reads three-odd litres an hour rolling down a hill with the
+     * throttle shut, which is exactly backwards — that is the one moment the
+     * car uses none.
+     *
+     * Three things have to hold at once, and all three are needed:
+     *  - the throttle is shut (idle position, calibrated from the lowest value
+     *    seen this session — the sensor reads 12-16 % closed on this car);
+     *  - engine speed is above the cut-off's re-enable point, since below it
+     *    the ECU turns the injectors back on to keep the engine alive;
+     *  - the car is actually moving, otherwise this is just idling in neutral,
+     *    where the injectors are very much working.
+     */
+    private fun onOverrun(): Boolean {
+        val throttle = _state.value.throttlePercent ?: return false
+        val rpm = _state.value.rpm ?: return false
+        val speed = _state.value.speedKmh ?: return false
+        if (speed < 5) return false
+        if (throttle > closedThrottlePercent + THROTTLE_CLOSED_MARGIN) return false
+        // Hysteresis: fuel comes back before the engine reaches idle, so the
+        // reading must not flicker between zero and a figure while the revs
+        // fall through the threshold.
+        val threshold = if (overrunActive) RPM_FUEL_RESUME else RPM_FUEL_CUT
+        return rpm >= threshold
     }
 
     /**

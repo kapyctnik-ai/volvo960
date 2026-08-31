@@ -52,7 +52,7 @@ class DashActivity : AppCompatActivity() {
     private lateinit var tileConsumption: TileView
     private lateinit var tileFlow: TileView
     private lateinit var tileAverage: TileView
-    private lateinit var tileFuelLevel: TileView
+    private lateinit var tileThrottle: TileView
     private lateinit var tileTrip: TileView
     private lateinit var tileTotal: TileView
     private lateinit var tileLoad: TileView
@@ -111,7 +111,7 @@ class DashActivity : AppCompatActivity() {
         tileConsumption = tile(R.string.tile_consumption, getString(R.string.unit_l100))
         tileFlow = tile(R.string.tile_flow, getString(R.string.unit_lph))
         tileAverage = tile(R.string.tile_average, getString(R.string.unit_l100))
-        tileFuelLevel = tile(R.string.tile_fuel_level, "%")
+        tileThrottle = tile(R.string.tile_throttle, "%")
         tileTrip = tile(R.string.tile_trip, getString(R.string.unit_km))
         tileTotal = tile(R.string.tile_total, getString(R.string.unit_km))
         tileLoad = tile(R.string.tile_load, "%")
@@ -346,7 +346,7 @@ class DashActivity : AppCompatActivity() {
         tileFlow.value = state.fuelRateLph?.let { format1(it) }
         tileFlow.unit = listOfNotNull(getString(R.string.unit_lph), source).joinToString(" · ")
         tileAverage.value = state.averageL100?.let { format1(it) }
-        tileFuelLevel.value = state.fuelLevelPercent?.toString()
+        tileThrottle.value = state.throttlePercent?.toString()
         tileTrip.value = format1(state.tripKm)
         tileTotal.value = format1(state.totalKm)
         tileLoad.value = state.engineLoadPercent?.toString()

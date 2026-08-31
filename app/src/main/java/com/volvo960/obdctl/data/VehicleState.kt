@@ -12,7 +12,6 @@ data class VehicleState(
     val intakeTempC: Int? = null,
     val engineLoadPercent: Int? = null,
     val throttlePercent: Int? = null,
-    val fuelLevelPercent: Int? = null,
     /** Litres per hour burnt right now. */
     val fuelRateLph: Double? = null,
     /** Litres per 100 km right now; null while stopped, where L/h is the honest figure. */
