@@ -12,16 +12,15 @@ import android.util.AttributeSet
 import android.view.View
 import java.util.Calendar
 import kotlin.math.cos
-import kotlin.math.exp
 import kotlin.math.sin
 
 /**
  * One dial from the real cluster photograph with a live needle on top.
  *
- * The needle is smoothed in real time rather than animated to a target: an
- * `alpha = 1 - exp(-dt/tau)` step is frame-rate independent, so it settles at
- * the same speed whether the view is drawing at 60 or 90 Hz, and a late poll
- * doesn't make it jump.
+ * The needle travels across the measured gap between readings, so it is still
+ * moving when the next one arrives and never stalls half way. An exponential
+ * approach — the obvious way to smooth this — starts with a jerk and then
+ * crawls, and at two or three readings a second the crawl is what you see.
  */
 class DialView @JvmOverloads constructor(
     context: Context,
@@ -32,8 +31,17 @@ class DialView @JvmOverloads constructor(
     enum class Mode { SPEEDO, TACHO, CLOCK }
 
     private companion object {
-        /** Needle time constant, seconds. Slow enough to look mechanical. */
-        const val TAU = 0.16f
+        /**
+         * How long the needle is given to travel between two readings when the
+         * sample rate is not yet known, and the bounds it is clamped to. The
+         * needle is driven across the measured gap between samples, so it is
+         * always moving and never stalls waiting for the next one.
+         */
+        const val DEFAULT_SAMPLE_MS = 400f
+        const val MIN_SAMPLE_MS = 120f
+        const val MAX_SAMPLE_MS = 1_500f
+        /** How much of the measured gap a new measurement is worth. */
+        const val SAMPLE_SMOOTHING = 0.3f
         const val SPEEDO_MAX = 240f
         const val TACHO_MAX = 7000f
         val NEEDLE_COLOR = Color.parseColor("#E5482F")
@@ -61,10 +69,15 @@ class DialView @JvmOverloads constructor(
             invalidate()
         }
 
-    private var target = 0f
     private var shown = 0f
-    private var lastFrameMs = 0L
     private var haveValue = false
+
+    /** The travel currently in progress: from [animFrom] to [animTo]. */
+    private var animFrom = 0f
+    private var animTo = 0f
+    private var animStartMs = 0L
+    private var lastSampleAtMs = 0L
+    private var sampleIntervalMs = DEFAULT_SAMPLE_MS
 
     private val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
     private val needlePaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -79,13 +92,22 @@ class DialView @JvmOverloads constructor(
 
     /** null blanks the needle: the car isn't reporting this reading. */
     fun setValue(value: Float?) {
-        if (value == null) {
-            haveValue = false
-            target = 0f
-        } else {
-            haveValue = true
-            target = value
+        val now = SystemClock.elapsedRealtime()
+        // Readings arrive as fast as the K-line allows, which varies with what
+        // else is being asked for. Measuring the gap rather than assuming it
+        // keeps the travel matched to the data: the needle arrives just as the
+        // next reading does.
+        if (lastSampleAtMs != 0L) {
+            val gap = (now - lastSampleAtMs).toFloat()
+            if (gap in MIN_SAMPLE_MS..MAX_SAMPLE_MS) {
+                sampleIntervalMs += (gap - sampleIntervalMs) * SAMPLE_SMOOTHING
+            }
         }
+        lastSampleAtMs = now
+        haveValue = value != null
+        animFrom = shown
+        animTo = value ?: 0f
+        animStartMs = now
         invalidate()
     }
 
@@ -139,13 +161,14 @@ class DialView @JvmOverloads constructor(
 
     private fun drawGauge(canvas: Canvas, piece: DialArt.Piece, cx: Float, cy: Float, scale: Float) {
         val now = SystemClock.elapsedRealtime()
-        val dt = if (lastFrameMs == 0L) 0f else (now - lastFrameMs) / 1000f
-        lastFrameMs = now
-        if (dt > 0f) {
-            val alpha = 1f - exp(-dt / TAU)
-            shown += (target - shown) * alpha
-        }
-        if (kotlin.math.abs(target - shown) > 0.5f) postInvalidateOnAnimation()
+        val elapsed = (now - animStartMs).toFloat()
+        val progress = (elapsed / sampleIntervalMs).coerceIn(0f, 1f)
+        // Eased at both ends: a needle has mass, so it neither starts nor stops
+        // instantly. Linear travel between samples looks mechanical in the wrong
+        // way — like a plotter.
+        val eased = progress * progress * (3f - 2f * progress)
+        shown = animFrom + (animTo - animFrom) * eased
+        if (progress < 1f) postInvalidateOnAnimation()
 
         if (!haveValue && shown < 1f) return
 

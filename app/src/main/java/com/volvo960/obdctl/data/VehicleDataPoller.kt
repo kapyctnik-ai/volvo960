@@ -244,10 +244,10 @@ class VehicleDataPoller(
 
             // Four fast readings plus one slow one per pass, and nothing else.
             // ISO 9141-2 runs at 10.4 kbaud with a request-response round trip
-            // of roughly a tenth of a second: ten PIDs a pass meant the
-            // needles updated once a second at best. These four are what
-            // actually moves — everything else changes slowly enough to take
-            // its turn.
+            // of roughly a tenth of a second, so every request in the pass is
+            // paid for in needle updates. These four earn their place: two are
+            // the needles themselves, and the other two are what the
+            // consumption figure is made of.
             var readAnything = false
 
             val rpm = read(PID_RPM, 0x0C, 2)?.let { (a, b) -> ((a * 256) + b) / 4 }
@@ -262,11 +262,6 @@ class VehicleDataPoller(
             if (speed != null) readAnything = true
             val gear = gears.update(rpm, speed)
             _state.update { it.copy(speedKmh = speed, gear = gear) }
-
-            read(PID_COOLANT, 0x05, 1)?.let { (a, _) ->
-                readAnything = true
-                _state.update { it.copy(coolantTempC = a - 40) }
-            }
 
             // Throttle is in the fast pass because the fuel calculation needs
             // it: a closed throttle is half of what proves the injectors are
@@ -350,16 +345,22 @@ class VehicleDataPoller(
      * more than the readings that do.
      */
     private suspend fun readSlowOne(): Boolean {
-        val slot = slowCursor % 4
+        val slot = slowCursor % 5
         slowCursor++
         return when (slot) {
-            0 -> read(PID_ENGINE_LOAD, 0x04, 1)?.let { (a, _) ->
+            // Coolant sits here rather than in the fast pass: it is a
+            // temperature, it moves in minutes, and every request it takes is a
+            // request the needles do not get.
+            0 -> read(PID_COOLANT, 0x05, 1)?.let { (a, _) ->
+                _state.update { it.copy(coolantTempC = a - 40) }
+            } != null
+            1 -> read(PID_ENGINE_LOAD, 0x04, 1)?.let { (a, _) ->
                 _state.update { it.copy(engineLoadPercent = a * 100 / 255) }
             } != null
-            1 -> read(PID_IAT, 0x0F, 1)?.let { (a, _) ->
+            2 -> read(PID_IAT, 0x0F, 1)?.let { (a, _) ->
                 _state.update { it.copy(intakeTempC = a - 40) }
             } != null
-            2 -> read(PID_SHORT_TRIM, 0x06, 1)?.let { (a, _) ->
+            3 -> read(PID_SHORT_TRIM, 0x06, 1)?.let { (a, _) ->
                 shortTrim = (a - 128) * 100.0 / 128.0
             } != null
             else -> read(PID_LONG_TRIM, 0x07, 1)?.let { (a, _) ->
