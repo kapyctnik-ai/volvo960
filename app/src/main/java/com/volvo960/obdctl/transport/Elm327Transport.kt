@@ -101,6 +101,7 @@ class Elm327Transport(
     @Volatile private var autoReconnect = false
     /** When the adapter last actually answered something. */
     @Volatile private var lastReplyAtMs = 0L
+    @Volatile private var lowPowerRequested = false
 
     val isConnected: Boolean
         get() = connectionState.value is ConnectionState.Connected
@@ -119,6 +120,15 @@ class Elm327Transport(
             closeQuietly()
             _connectionState.value = ConnectionState.Disconnected
         }
+    }
+
+    /**
+     * Asks for a cheaper link while the dashboard is not being watched. Only
+     * BLE can act on it; on Classic it is a no-op.
+     */
+    fun setLowPower(lowPower: Boolean) {
+        lowPowerRequested = lowPower
+        link?.setLowPower(lowPower)
     }
 
     /** Fully tears down the transport; call from service onDestroy. */
@@ -140,6 +150,10 @@ class Elm327Transport(
         if (result is CommandResult.Error) {
             if (result.fatal && dropOnFailure) {
                 onTransportFailure(result.message)
+            } else if (link?.isBroken == true) {
+                // The radio already told us the peer is gone; no point sitting
+                // out the silence timer for something already known.
+                onTransportFailure("соединение разорвано")
             } else {
                 // Callers that must not drop the link on one refused request
                 // (polling does exactly that) still need the link to die when
@@ -277,6 +291,7 @@ class Elm327Transport(
             try {
                 withContext(Dispatchers.IO) { candidate.open() }
                 link = candidate
+                candidate.setLowPower(lowPowerRequested)
                 lastReplyAtMs = SystemClock.elapsedRealtime()
                 initAdapter()
                 val name = try { device.name } catch (e: SecurityException) { null } ?: device.address

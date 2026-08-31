@@ -31,6 +31,32 @@ class VolvoApp : Application() {
     lateinit var vehicleData: VehicleDataPoller
         private set
 
+    @Volatile private var uiVisible = false
+    @Volatile private var screenOn = true
+
+    /** The dashboard came to the front, or went away. */
+    fun setUiVisible(visible: Boolean) {
+        uiVisible = visible
+        applyPowerMode()
+    }
+
+    /** The screen turned on, or off. */
+    fun setScreenOn(on: Boolean) {
+        screenOn = on
+        applyPowerMode()
+    }
+
+    /**
+     * Everything that costs power when nobody is looking, in one place: the
+     * poll cadence and, on BLE, the connection interval.
+     */
+    private fun applyPowerMode() {
+        if (!::transport.isInitialized || !::vehicleData.isInitialized) return
+        val lowPower = !(uiVisible && screenOn)
+        transport.setLowPower(lowPower)
+        vehicleData.lowPower = lowPower
+    }
+
     override fun onCreate() {
         super.onCreate()
         logger = CommandLogger(this)

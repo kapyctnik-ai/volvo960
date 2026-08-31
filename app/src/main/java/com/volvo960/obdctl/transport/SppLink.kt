@@ -23,6 +23,9 @@ class SppLink(
 
     override val label = "SPP"
 
+    override val isBroken: Boolean
+        get() = readFailure != null
+
     private var socket: BluetoothSocket? = null
     private var input: InputStream? = null
     private var output: OutputStream? = null

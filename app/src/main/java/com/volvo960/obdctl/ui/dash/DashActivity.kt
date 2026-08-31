@@ -100,6 +100,17 @@ class DashActivity : AppCompatActivity() {
         autoConnect()
     }
 
+    override fun onStart() {
+        super.onStart()
+        app.setUiVisible(true)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Backgrounded: the link stays up, but at a fraction of the cost.
+        app.setUiVisible(false)
+    }
+
     private fun buildTiles() {
         val grid = binding.gridTiles
         fun tile(labelRes: Int, unit: String): TileView {

@@ -95,6 +95,12 @@ class VehicleDataPoller(
         const val REQUEST_TIMEOUT_WARM_MS = 4_000L
         /** Just enough to let the K-line settle between passes. */
         const val CYCLE_PAUSE_MS = 60L
+        /**
+         * With the screen off or the app in the background there is nobody to
+         * see a needle move. Trip distance and fuel are integrated from the
+         * samples, and a pass a second is plenty for that.
+         */
+        const val BACKGROUND_PAUSE_MS = 1_200L
         /** Backs off after repeated silence instead of hammering the bus. */
         const val BACKOFF_AFTER_FAILURES = 3
         const val BACKOFF_MS = 5_000L
@@ -144,6 +150,9 @@ class VehicleDataPoller(
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
 
     private var job: Job? = null
+    /** Set while the dashboard is not on screen; slows the cycle right down. */
+    @Volatile var lowPower = false
+
     private var lastSampleAtMs = 0L
     /** When a PID last parsed successfully — the only proof the car is awake. */
     private var lastDataAtMs = 0L
@@ -292,6 +301,7 @@ class VehicleDataPoller(
                 when {
                     consecutiveFailures >= DEEP_BACKOFF_AFTER_FAILURES -> DEEP_BACKOFF_MS
                     consecutiveFailures >= BACKOFF_AFTER_FAILURES -> BACKOFF_MS
+                    lowPower -> BACKGROUND_PAUSE_MS
                     else -> CYCLE_PAUSE_MS
                 }
             )

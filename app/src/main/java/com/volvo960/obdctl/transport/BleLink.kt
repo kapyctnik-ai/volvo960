@@ -70,6 +70,28 @@ class BleLink(
     override var label: String = "BLE"
         private set
 
+    override val isBroken: Boolean
+        get() = dropped
+
+    /**
+     * The one real battery lever BLE has and Classic does not: the connection
+     * interval. HIGH is roughly 11-15 ms between connection events, LOW_POWER
+     * roughly 100-125 ms — the radio wakes about eight times less often. Worth
+     * having whenever nobody is looking at the dashboard.
+     */
+    override fun setLowPower(lowPower: Boolean) {
+        val g = gatt ?: return
+        val priority = if (lowPower) {
+            BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER
+        } else {
+            BluetoothGatt.CONNECTION_PRIORITY_HIGH
+        }
+        try {
+            g.requestConnectionPriority(priority)
+        } catch (_: Exception) {
+        }
+    }
+
     private var gatt: BluetoothGatt? = null
     private var writeChar: BluetoothGattCharacteristic? = null
     private var notifyChar: BluetoothGattCharacteristic? = null
@@ -115,6 +137,14 @@ class BleLink(
             // connection interval adds tens of milliseconds to every request.
             try {
                 g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+                // Bluetooth 5's 2 Mbit PHY halves the time each packet spends
+                // on air. Adapters that don't support it stay on 1 Mbit; asking
+                // costs nothing either way.
+                g.setPreferredPhy(
+                    BluetoothDevice.PHY_LE_2M_MASK,
+                    BluetoothDevice.PHY_LE_2M_MASK,
+                    BluetoothDevice.PHY_OPTION_NO_PREFERRED,
+                )
             } catch (_: Exception) {
             }
             servicesLatch.countDown()

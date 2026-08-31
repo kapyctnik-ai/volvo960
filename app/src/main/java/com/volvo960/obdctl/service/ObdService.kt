@@ -2,10 +2,13 @@ package com.volvo960.obdctl.service
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.PowerManager
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.volvo960.obdctl.R
@@ -53,6 +56,35 @@ class ObdService : LifecycleService() {
     private val app: VolvoApp get() = application as VolvoApp
     private var wakeLock: PowerManager.WakeLock? = null
     private var started = false
+
+    /**
+     * A dark screen means nobody is reading the dashboard, whether or not the
+     * activity is still technically in front — worth knowing, because it is
+     * the cue to slow everything down.
+     */
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_ON -> app.setScreenOn(true)
+                Intent.ACTION_SCREEN_OFF -> app.setScreenOn(false)
+            }
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        ContextCompat.registerReceiver(
+            this,
+            screenReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_SCREEN_OFF)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        app.setScreenOn(pm?.isInteractive ?: true)
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
@@ -191,6 +223,7 @@ class ObdService : LifecycleService() {
     }
 
     override fun onDestroy() {
+        try { unregisterReceiver(screenReceiver) } catch (_: IllegalArgumentException) { }
         releaseWakeLock()
         wakeLock = null
         super.onDestroy()
