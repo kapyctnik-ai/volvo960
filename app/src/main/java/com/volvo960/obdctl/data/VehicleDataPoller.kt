@@ -101,6 +101,14 @@ class VehicleDataPoller(
         /** A car that has said nothing for a while is off; stop chasing it. */
         const val DEEP_BACKOFF_AFTER_FAILURES = 10
         const val DEEP_BACKOFF_MS = 30_000L
+        /** Readings older than this are not shown; a frozen gauge reads as a live one. */
+        const val STALE_MS = 10_000L
+        /**
+         * A powered dongle in a parked car answers every request with NO DATA
+         * for ever, which the transport cannot tell from a working link. After
+         * this long without a single reading, stop the app.
+         */
+        const val GIVE_UP_WITHOUT_DATA_MS = 5 * 60_000L
         /** How many times to check whether the adapter understands the reply-count digit. */
         const val MAX_HINT_PROBES = 3
         /** A PID that never answers is dropped after this many silent tries. */
@@ -137,6 +145,8 @@ class VehicleDataPoller(
 
     private var job: Job? = null
     private var lastSampleAtMs = 0L
+    /** When a PID last parsed successfully — the only proof the car is awake. */
+    private var lastDataAtMs = 0L
     private var consecutiveFailures = 0
     private var cycle = 0
 
@@ -209,6 +219,7 @@ class VehicleDataPoller(
                     )
                 }
                 lastSampleAtMs = 0L
+                lastDataAtMs = 0L
                 consecutiveFailures = 0
                 supported = null
                 silentTries.clear()
@@ -269,6 +280,7 @@ class VehicleDataPoller(
                 _lastError.value = null
             } else {
                 consecutiveFailures++
+                enforceStaleness()
             }
 
             // Asked once, after real readings have had their turn: three
@@ -282,6 +294,42 @@ class VehicleDataPoller(
                     consecutiveFailures >= BACKOFF_AFTER_FAILURES -> BACKOFF_MS
                     else -> CYCLE_PAUSE_MS
                 }
+            )
+        }
+    }
+
+    /**
+     * Blanks the live readings once they stop arriving, and stops the app when
+     * they have not arrived for long enough that nobody is driving anything.
+     *
+     * A gauge holding its last value looks exactly like a gauge being fed, and
+     * the notification said "связь есть · ОЖ 106" for twenty-five minutes after
+     * the car had been walked away from. Showing nothing is the honest answer.
+     */
+    private fun enforceStaleness() {
+        if (lastDataAtMs == 0L) {
+            // Never had a reading on this connection; start the clock at the
+            // first failure so the give-up timer has something to measure from.
+            lastDataAtMs = SystemClock.elapsedRealtime()
+            return
+        }
+        val silentFor = SystemClock.elapsedRealtime() - lastDataAtMs
+        if (silentFor >= GIVE_UP_WITHOUT_DATA_MS) {
+            transport.abandon("машина не отвечает ${silentFor / 60_000} мин")
+            return
+        }
+        if (silentFor < STALE_MS) return
+        _state.update {
+            it.copy(
+                speedKmh = null,
+                rpm = null,
+                coolantTempC = null,
+                intakeTempC = null,
+                engineLoadPercent = null,
+                throttlePercent = null,
+                gear = null,
+                fuelRateLph = null,
+                consumptionL100 = null,
             )
         }
     }
@@ -502,6 +550,7 @@ class VehicleDataPoller(
         }
         silentTries.remove(pid)
         everAnswered = true
+        lastDataAtMs = SystemClock.elapsedRealtime()
         val first = bytes.getOrNull(0) ?: return null
         return first to (bytes.getOrNull(1) ?: 0)
     }

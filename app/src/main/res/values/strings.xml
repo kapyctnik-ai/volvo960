@@ -106,6 +106,7 @@
     <string name="notif_title_retrying">960-Dash · переподключение</string>
     <string name="notif_title_giving_up">960-Dash · выключаюсь</string>
     <string name="notif_title_idle">960-Dash</string>
+    <string name="notif_text_no_data">Адаптер отвечает, машина молчит</string>
     <string name="notif_text_live">%1$d км/ч · ОЖ %2$d °C</string>
     <string name="notif_action_stop">Стоп</string>
     <string name="notif_shutdown_title">960-Dash закрылся</string>

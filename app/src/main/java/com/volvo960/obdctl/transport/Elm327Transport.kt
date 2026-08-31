@@ -2,6 +2,7 @@ package com.volvo960.obdctl.transport
 
 import android.bluetooth.BluetoothDevice
 import android.content.Context
+import android.os.SystemClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -44,6 +45,21 @@ class Elm327Transport(
          */
         private val RECONNECT_DELAYS_MS = longArrayOf(5_000, 180_000, 180_000, 180_000)
         private const val MAX_ATTEMPTS = 5
+
+        /**
+         * A socket that is open but answers nothing is not a connection. Past
+         * this, the link is torn down and the reconnect policy takes over —
+         * without it a dongle driven away in the car left the app "connected"
+         * for as long as the phone had battery to give.
+         */
+        private const val DEAD_LINK_MS = 20_000L
+
+        /**
+         * ...and once nothing has been read for this long, however many
+         * sockets opened in the meantime, there is nothing to talk to: the car
+         * is parked and asleep. Stop, and take the process with us.
+         */
+        private const val ABANDON_AFTER_SILENT_MS = 5 * 60_000L
     }
 
     sealed class CommandResult {
@@ -83,6 +99,8 @@ class Elm327Transport(
     private var connectionJob: Job? = null
     @Volatile private var targetDevice: BluetoothDevice? = null
     @Volatile private var autoReconnect = false
+    /** When the adapter last actually answered something. */
+    @Volatile private var lastReplyAtMs = 0L
 
     val isConnected: Boolean
         get() = connectionState.value is ConnectionState.Connected
@@ -119,10 +137,48 @@ class Elm327Transport(
             return CommandResult.Error("нет соединения")
         }
         val result = mutex.withLock { rawExchange(command, timeoutMs) }
-        if (result is CommandResult.Error && result.fatal && dropOnFailure) {
-            onTransportFailure(result.message)
+        if (result is CommandResult.Error) {
+            if (result.fatal && dropOnFailure) {
+                onTransportFailure(result.message)
+            } else {
+                // Callers that must not drop the link on one refused request
+                // (polling does exactly that) still need the link to die when
+                // it stops answering altogether.
+                checkDeadLink()
+            }
         }
         return result
+    }
+
+    /**
+     * Drops a link that has gone quiet, and gives up entirely once the silence
+     * has outlasted any plausible reconnection. Both timers are here rather
+     * than in the caller so every path through the transport is covered.
+     */
+    private suspend fun checkDeadLink() {
+        if (connectionState.value !is ConnectionState.Connected) return
+        val silentFor = SystemClock.elapsedRealtime() - lastReplyAtMs
+        if (silentFor < DEAD_LINK_MS) return
+        if (silentFor >= ABANDON_AFTER_SILENT_MS) {
+            abandon("нет данных ${silentFor / 60_000} мин")
+        } else {
+            onTransportFailure("адаптер молчит ${silentFor / 1000} с")
+        }
+    }
+
+    /**
+     * Stops for good: no more attempts, and the service takes the app down.
+     * Public because the adapter answering "NO DATA" forever — a powered
+     * dongle in a parked car — is a link the transport itself cannot tell from
+     * a working one. Only the poller knows no reading has arrived.
+     */
+    fun abandon(reason: String) {
+        autoReconnect = false
+        connectionJob?.cancel()
+        closeQuietly()
+        _connectionState.value = ConnectionState.GaveUp(reason)
+        logger.logError("прекращаю: $reason")
+        onGaveUp?.invoke()
     }
 
     /**
@@ -221,6 +277,7 @@ class Elm327Transport(
             try {
                 withContext(Dispatchers.IO) { candidate.open() }
                 link = candidate
+                lastReplyAtMs = SystemClock.elapsedRealtime()
                 initAdapter()
                 val name = try { device.name } catch (e: SecurityException) { null } ?: device.address
                 _connectionState.value = ConnectionState.Connected("$name · ${candidate.label}", device.address)
@@ -288,6 +345,9 @@ class Elm327Transport(
             val raw = withContext(Dispatchers.IO) { current.readUntilPrompt(timeoutMs) }
             val cleaned = cleanResponse(raw)
             logger.logReceived(cleaned)
+            // Anything that came back at all proves the adapter is there; a
+            // refusal from the car still means the link works.
+            lastReplyAtMs = SystemClock.elapsedRealtime()
             val failure = adapterErrorIn(cleaned)
             // The raw reply travels with the complaint: naming only the marker
             // that matched hides what the adapter actually said, which is the
@@ -332,6 +392,10 @@ class Elm327Transport(
         if (_connectionState.value !is ConnectionState.Connected) return
         _connectionState.value = ConnectionState.Failed(reason)
         closeQuietly()
+        if (SystemClock.elapsedRealtime() - lastReplyAtMs >= ABANDON_AFTER_SILENT_MS) {
+            abandon(reason)
+            return
+        }
         if (autoReconnect) {
             val device = targetDevice
             if (device != null) {

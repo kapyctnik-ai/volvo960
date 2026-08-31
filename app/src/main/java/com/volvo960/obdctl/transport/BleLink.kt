@@ -57,6 +57,11 @@ class BleLink(
         ).map { UUID.fromString(it) }.toSet()
 
         private const val CONNECT_TIMEOUT_MS = 20_000L
+        /** Android's own generic failure; on many phones a second attempt just works. */
+        private const val GATT_INTERNAL_ERROR = 133
+        private const val RETRY_DELAY_MS = 600L
+        /** Bridges need a moment between subscribing and the first command. */
+        private const val NOTIFY_SETTLE_MS = 250L
         private const val OP_TIMEOUT_MS = 5_000L
         private const val WANTED_MTU = 185
         private const val POLL_INTERVAL_MS = 10L
@@ -106,6 +111,12 @@ class BleLink(
 
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) lastFailure = "поиск сервисов: status $status"
+            // A serial bridge is polled several times a second; the default
+            // connection interval adds tens of milliseconds to every request.
+            try {
+                g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+            } catch (_: Exception) {
+            }
             servicesLatch.countDown()
         }
 
@@ -136,6 +147,20 @@ class BleLink(
     }
 
     override fun open() {
+        try {
+            openOnce()
+        } catch (e: IOException) {
+            // GATT 133 is Android's catch-all and is famously transient on
+            // first connect; one retry turns most of them into a link.
+            if (lastFailure?.contains(GATT_INTERNAL_ERROR.toString()) != true) throw e
+            logger.logError("BLE: status $GATT_INTERNAL_ERROR, вторая попытка")
+            close()
+            Thread.sleep(RETRY_DELAY_MS)
+            openOnce()
+        }
+    }
+
+    private fun openOnce() {
         dropped = false
         lastFailure = null
         incoming.clear()
@@ -165,6 +190,10 @@ class BleLink(
         logger.logError("BLE: сервис ${pair.first.service.uuid}, notify ${pair.first.uuid}, write ${pair.second.uuid}, payload $payloadSize")
 
         enableNotifications(g, pair.first)
+        // Anything written before the subscription has settled is answered into
+        // the void: the reply is generated, and nobody is listening yet.
+        Thread.sleep(NOTIFY_SETTLE_MS)
+        incoming.clear()
     }
 
     /**

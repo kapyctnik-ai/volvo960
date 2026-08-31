@@ -80,7 +80,6 @@ class ObdService : LifecycleService() {
         goForeground(getString(R.string.notif_title_connecting), address)
         if (started) return
         started = true
-        acquireWakeLock()
 
         app.transport.onGaveUp = {
             val reason = (app.transport.connectionState.value as? ConnectionState.GaveUp)?.reason
@@ -105,6 +104,12 @@ class ObdService : LifecycleService() {
             combine(app.transport.connectionState, app.vehicleData.state) { state, vehicle ->
                 state to vehicle
             }.collect { (state, vehicle) ->
+                // The wake lock is held only while there is traffic to keep
+                // alive. Holding it for the life of the service kept the CPU
+                // awake through every reconnect wait and every dead link —
+                // which is what flattened the battery with nothing to show.
+                if (state is ConnectionState.Connected) acquireWakeLock() else releaseWakeLock()
+
                 val title = when (state) {
                     is ConnectionState.Connected -> getString(R.string.notif_title_connected)
                     ConnectionState.Connecting -> getString(R.string.notif_title_connecting)
@@ -113,11 +118,17 @@ class ObdService : LifecycleService() {
                     ConnectionState.Disconnected -> getString(R.string.notif_title_idle)
                 }
                 val text = when (state) {
-                    is ConnectionState.Connected -> getString(
-                        R.string.notif_text_live,
-                        vehicle.speedKmh ?: 0,
-                        vehicle.coolantTempC ?: 0,
-                    )
+                    is ConnectionState.Connected -> {
+                        val speed = vehicle.speedKmh
+                        val coolant = vehicle.coolantTempC
+                        // Blanked readings mean nothing has arrived recently;
+                        // saying so beats showing a number from ten minutes ago.
+                        if (speed == null && coolant == null) {
+                            getString(R.string.notif_text_no_data)
+                        } else {
+                            getString(R.string.notif_text_live, speed ?: 0, coolant ?: 0)
+                        }
+                    }
                     is ConnectionState.Failed -> state.reason
                     is ConnectionState.GaveUp -> state.reason
                     else -> address
@@ -141,10 +152,15 @@ class ObdService : LifecycleService() {
     private fun acquireWakeLock() {
         if (wakeLock?.isHeld == true) return
         val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "volvo960:obd").apply {
-            setReferenceCounted(false)
-            acquire()
+        val lock = wakeLock ?: pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "volvo960:obd").also {
+            it.setReferenceCounted(false)
+            wakeLock = it
         }
+        lock.acquire()
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let { if (it.isHeld) it.release() }
     }
 
     /**
@@ -159,7 +175,7 @@ class ObdService : LifecycleService() {
         // Only a shutdown for good releases the transport: release() cancels
         // its scope permanently, and a plain stop has to leave it reusable.
         if (kill) app.transport.release()
-        wakeLock?.let { if (it.isHeld) it.release() }
+        releaseWakeLock()
         wakeLock = null
         started = false
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -175,7 +191,7 @@ class ObdService : LifecycleService() {
     }
 
     override fun onDestroy() {
-        wakeLock?.let { if (it.isHeld) it.release() }
+        releaseWakeLock()
         wakeLock = null
         super.onDestroy()
     }
