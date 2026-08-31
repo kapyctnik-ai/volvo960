@@ -13,6 +13,11 @@
     <string name="confirm_disconnect">Отключиться от адаптера?</string>
     <string name="bluetooth_off">Bluetooth выключен. Включите его и повторите.</string>
     <string name="dialog_title_choose_device">Адаптер (сопряжённые + поиск BLE)</string>
+    <string name="dialog_title_choose_device_scanning">Поиск BLE… найдено %1$d</string>
+    <string name="action_rescan">Искать ещё</string>
+    <string name="picker_scanning">Идёт поиск BLE…</string>
+    <string name="picker_nothing_found">Ничего не найдено. Включите зажигание, воткните адаптер, жмите «Искать ещё».</string>
+    <string name="picker_no_scan_permission">Нет разрешения на поиск Bluetooth — выдайте его, иначе BLE-адаптер не найти.</string>
 
     <!-- Dashboard -->
     <string name="dash_status_disconnected">Нет связи · нажмите, чтобы выбрать адаптер</string>
@@ -43,6 +48,9 @@
     <string name="fuel_source_ecu">расход от ЭБУ</string>
     <string name="fuel_source_maf">расход по ДМРВ</string>
     <string name="fuel_source_map">расход по MAP (оценка)</string>
+    <string name="fuel_short_ecu">ЭБУ</string>
+    <string name="fuel_short_maf">ДМРВ</string>
+    <string name="fuel_short_map">MAP, оценка</string>
 
     <!-- Tank -->
     <string name="tank_value">%1$s / %2$d л</string>

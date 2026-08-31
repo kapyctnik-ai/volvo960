@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.View
+import android.widget.Toast
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.GridLayout
@@ -126,6 +127,15 @@ class DashActivity : AppCompatActivity() {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
+    private fun hasScanPermission(): Boolean {
+        val needed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Manifest.permission.BLUETOOTH_SCAN
+        } else {
+            Manifest.permission.ACCESS_FINE_LOCATION
+        }
+        return ContextCompat.checkSelfPermission(this, needed) == PackageManager.PERMISSION_GRANTED
+    }
+
     private fun requestRuntimePermissions() {
         val perms = mutableListOf<String>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -167,6 +177,13 @@ class DashActivity : AppCompatActivity() {
     }
 
     private fun pickDevice() {
+        // Without the scan permission the picker can only ever show paired
+        // devices, and a LE dongle is never among them — so ask first and say
+        // why, instead of opening a dialog that cannot find anything.
+        if (!hasScanPermission()) {
+            requestRuntimePermissions()
+            Toast.makeText(this, R.string.picker_no_scan_permission, Toast.LENGTH_LONG).show()
+        }
         DevicePicker(this).show { device ->
             app.prefs.lastDeviceAddress = device.address
             ObdService.start(this, device.address)
@@ -230,8 +247,18 @@ class DashActivity : AppCompatActivity() {
             if (it >= 105) Color.parseColor("#E5482F") else null
         }
         tileRpm.value = state.rpm?.toString()
+        // The method is part of the reading: MAP-based figures are an estimate
+        // and the status line is often busy with something else.
+        val source = when (state.fuelSource) {
+            FuelSource.ECU_FUEL_RATE -> getString(R.string.fuel_short_ecu)
+            FuelSource.MAF -> getString(R.string.fuel_short_maf)
+            FuelSource.SPEED_DENSITY -> getString(R.string.fuel_short_map)
+            null -> null
+        }
         tileConsumption.value = state.consumptionL100?.let { format1(it) }
+        tileConsumption.unit = listOfNotNull(getString(R.string.unit_l100), source).joinToString(" · ")
         tileFlow.value = state.fuelRateLph?.let { format1(it) }
+        tileFlow.unit = listOfNotNull(getString(R.string.unit_lph), source).joinToString(" · ")
         tileAverage.value = state.averageL100?.let { format1(it) }
         tileFuelLevel.value = state.fuelLevelPercent?.toString()
         tileTrip.value = format1(state.tripKm)

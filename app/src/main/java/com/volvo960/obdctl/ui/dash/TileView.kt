@@ -96,7 +96,14 @@ class TileView @JvmOverloads constructor(
         canvas.drawText(text, width / 2f, baseline, valuePaint)
 
         if (unit.isNotEmpty()) {
-            unitPaint.textSize = dp(11f)
+            // The unit carries the method the number came from, so it can get
+            // long; shrink rather than clip.
+            var unitSize = dp(11f)
+            unitPaint.textSize = unitSize
+            while (unitPaint.measureText(unit) > maxWidth && unitSize > dp(7f)) {
+                unitSize -= dp(0.5f)
+                unitPaint.textSize = unitSize
+            }
             canvas.drawText(unit, width / 2f, height - dp(8f), unitPaint)
         }
     }
