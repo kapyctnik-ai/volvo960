@@ -90,21 +90,22 @@ class VehicleDataPoller(
          * eight for each of ten PIDs is most of a minute of radio per cycle.
          */
         const val REQUEST_TIMEOUT_WARM_MS = 4_000L
-        const val CYCLE_PAUSE_MS = 120L
+        /** Just enough to let the K-line settle between passes. */
+        const val CYCLE_PAUSE_MS = 60L
         /** Backs off after repeated silence instead of hammering the bus. */
         const val BACKOFF_AFTER_FAILURES = 3
         const val BACKOFF_MS = 5_000L
         /** A car that has said nothing for a while is off; stop chasing it. */
         const val DEEP_BACKOFF_AFTER_FAILURES = 10
         const val DEEP_BACKOFF_MS = 30_000L
+        /** How many times to check whether the adapter understands the reply-count digit. */
+        const val MAX_HINT_PROBES = 3
         /** A PID that never answers is dropped after this many silent tries. */
         const val MUTE_AFTER_SILENT = 3
         /** ...and retried this often, in case it only sleeps with the engine off. */
         const val RETRY_MUTED_EVERY = 40
         /** Stop counting distance and fuel once readings stop arriving. */
         const val SAMPLE_STALE_MS = 6_000L
-        /** Slow-moving readings don't need a slot in every cycle. */
-        const val SLOW_EVERY = 10
 
         /** B6304S/B6304F: 2 922 cm³, the 960's straight six. */
         const val DISPLACEMENT_L = 2.922
@@ -136,6 +137,11 @@ class VehicleDataPoller(
     private var shortTrim: Double? = null
     private var longTrim: Double? = null
     private var lastMapKpa: Int? = null
+    private var slowCursor = 0
+    private var responseHint = true
+    private var hintProbes = 0
+    /** Which consumption tier answered; set once, so the others stop being asked. */
+    private var lockedSource: FuelSource? = null
 
     fun start() {
         if (job?.isActive == true) return
@@ -194,52 +200,43 @@ class VehicleDataPoller(
                 supported = null
                 silentTries.clear()
                 everAnswered = false
+                lockedSource = null
+                responseHint = true
+                hintProbes = 0
                 delay(1_000)
                 continue
             }
 
+            // Four fast readings plus one slow one per pass, and nothing else.
+            // ISO 9141-2 runs at 10.4 kbaud with a request-response round trip
+            // of roughly a tenth of a second: ten PIDs a pass meant the
+            // needles updated once a second at best. These four are what
+            // actually moves — everything else changes slowly enough to take
+            // its turn.
             var readAnything = false
-            // Coolant first: it is the one reading this car is known to answer,
-            // so a working link shows up on the dashboard immediately even if
-            // everything else is ignored.
-            read(PID_COOLANT, 0x05, 1)?.let { (a, _) ->
-                readAnything = true
-                _state.update { it.copy(coolantTempC = a - 40) }
-            }
-            // Speed and rpm are blanked when the request fails rather than
-            // kept: a stale speed would go on adding distance and fuel that
-            // the car never covered, and a needle frozen at the last value is
-            // a lie the driver can act on.
+
             val rpm = read(PID_RPM, 0x0C, 2)?.let { (a, b) -> ((a * 256) + b) / 4 }
             if (rpm != null) readAnything = true
+            // Speed and rpm are blanked when the request fails rather than
+            // kept: a stale speed would go on adding distance and fuel the car
+            // never covered, and a needle frozen at the last value is a lie the
+            // driver can act on.
             _state.update { it.copy(rpm = rpm) }
 
             val speed = read(PID_SPEED, 0x0D, 1)?.first
             if (speed != null) readAnything = true
             _state.update { it.copy(speedKmh = speed) }
-            read(PID_ENGINE_LOAD, 0x04, 1)?.let { (a, _) ->
+
+            read(PID_COOLANT, 0x05, 1)?.let { (a, _) ->
                 readAnything = true
-                _state.update { it.copy(engineLoadPercent = a * 100 / 255) }
-            }
-            read(PID_THROTTLE, 0x11, 1)?.let { (a, _) ->
-                readAnything = true
-                _state.update { it.copy(throttlePercent = a * 100 / 255) }
-            }
-            if (cycle % SLOW_EVERY == 0) {
-                read(PID_FUEL_LEVEL, 0x2F, 1)?.let { (a, _) ->
-                    readAnything = true
-                    _state.update { it.copy(fuelLevelPercent = a * 100 / 255) }
-                }
-                read(PID_IAT, 0x0F, 1)?.let { (a, _) ->
-                    readAnything = true
-                    _state.update { it.copy(intakeTempC = a - 40) }
-                }
-                readTrims()
+                _state.update { it.copy(coolantTempC = a - 40) }
             }
 
             val fuel = readFuelRate()
             if (fuel != null) readAnything = true
             integrate(fuel)
+
+            if (readSlowOne()) readAnything = true
 
             if (readAnything) {
                 consecutiveFailures = 0
@@ -260,6 +257,36 @@ class VehicleDataPoller(
                     else -> CYCLE_PAUSE_MS
                 }
             )
+        }
+    }
+
+    /**
+     * One background reading per pass, round robin. None of these move fast
+     * enough to be worth a slot in every cycle, and together they used to cost
+     * more than the readings that do.
+     */
+    private suspend fun readSlowOne(): Boolean {
+        val slot = slowCursor % 6
+        slowCursor++
+        return when (slot) {
+            0 -> read(PID_FUEL_LEVEL, 0x2F, 1)?.let { (a, _) ->
+                _state.update { it.copy(fuelLevelPercent = a * 100 / 255) }
+            } != null
+            1 -> read(PID_ENGINE_LOAD, 0x04, 1)?.let { (a, _) ->
+                _state.update { it.copy(engineLoadPercent = a * 100 / 255) }
+            } != null
+            2 -> read(PID_IAT, 0x0F, 1)?.let { (a, _) ->
+                _state.update { it.copy(intakeTempC = a - 40) }
+            } != null
+            3 -> read(PID_THROTTLE, 0x11, 1)?.let { (a, _) ->
+                _state.update { it.copy(throttlePercent = a * 100 / 255) }
+            } != null
+            4 -> read(PID_SHORT_TRIM, 0x06, 1)?.let { (a, _) ->
+                shortTrim = (a - 128) * 100.0 / 128.0
+            } != null
+            else -> read(PID_LONG_TRIM, 0x07, 1)?.let { (a, _) ->
+                longTrim = (a - 128) * 100.0 / 128.0
+            } != null
         }
     }
 
@@ -295,24 +322,29 @@ class VehicleDataPoller(
         }
     }
 
-    private suspend fun readTrims() {
-        shortTrim = read(PID_SHORT_TRIM, 0x06, 1)?.let { (a, _) -> (a - 128) * 100.0 / 128.0 }
-        longTrim = read(PID_LONG_TRIM, 0x07, 1)?.let { (a, _) -> (a - 128) * 100.0 / 128.0 }
-    }
-
     /** Litres per hour, by whichever tier the car supports. */
     private suspend fun readFuelRate(): Pair<Double, FuelSource>? {
-        // Tried by what actually answers, not by what the bitmap claims: the
-        // silence counter drops a PID after three ignored requests anyway, and
-        // an ECU whose bitmap under-reports would otherwise never be asked.
-        read(PID_FUEL_RATE, 0x5E, 2)?.let { (a, b) ->
-            return ((a * 256 + b) / 20.0) to FuelSource.ECU_FUEL_RATE
+        // Tried by what actually answers, not by what the bitmap claims: an
+        // ECU whose bitmap under-reports would otherwise never be asked. Once
+        // a tier answers it is locked in — retrying the better tiers on every
+        // pass would spend a request each on PIDs already known to be silent.
+        if (lockedSource == null || lockedSource == FuelSource.ECU_FUEL_RATE) {
+            read(PID_FUEL_RATE, 0x5E, 2)?.let { (a, b) ->
+                lockedSource = FuelSource.ECU_FUEL_RATE
+                return ((a * 256 + b) / 20.0) to FuelSource.ECU_FUEL_RATE
+            }
         }
-        read(PID_MAF, 0x10, 2)?.let { (a, b) ->
-            val mafGs = (a * 256 + b) / 100.0
-            return litresPerHour(mafGs) to FuelSource.MAF
+        if (lockedSource == null || lockedSource == FuelSource.MAF) {
+            read(PID_MAF, 0x10, 2)?.let { (a, b) ->
+                lockedSource = FuelSource.MAF
+                val mafGs = (a * 256 + b) / 100.0
+                return litresPerHour(mafGs) to FuelSource.MAF
+            }
         }
-        read(PID_MAP, 0x0B, 1)?.let { (a, _) -> lastMapKpa = a }
+        read(PID_MAP, 0x0B, 1)?.let { (a, _) ->
+            lastMapKpa = a
+            lockedSource = FuelSource.SPEED_DENSITY
+        }
         val map = lastMapKpa ?: return null
         val rpm = _state.value.rpm ?: return null
         val iat = _state.value.intakeTempC ?: 20
@@ -421,7 +453,31 @@ class VehicleDataPoller(
         return cycle % RETRY_MUTED_EVERY != 0
     }
 
+    /**
+     * A trailing digit on the request tells the ELM327 how many replies to
+     * expect. Without it the adapter sits out its full timeout after the answer
+     * in case a second ECU speaks, which on this single-ECU car is dead time on
+     * every single request — the largest cost in the whole poll cycle.
+     *
+     * Older clones do not understand the digit, so the first few failures are
+     * retried plain; if the plain form works the hint is dropped for good.
+     */
     private suspend fun readBytes(pid: String, pidEcho: Int, wantBytes: Int): List<Int>? {
+        val hinted = exchange(if (responseHint) pid + "1" else pid, pidEcho, wantBytes)
+        if (hinted != null) return hinted
+        if (responseHint && hintProbes < MAX_HINT_PROBES) {
+            hintProbes++
+            val plain = exchange(pid, pidEcho, wantBytes)
+            if (plain != null) {
+                responseHint = false
+                logger.logError("адаптер не понял счётчик ответов, отключил его")
+                return plain
+            }
+        }
+        return null
+    }
+
+    private suspend fun exchange(pid: String, pidEcho: Int, wantBytes: Int): List<Int>? {
         val timeout = if (everAnswered) REQUEST_TIMEOUT_WARM_MS else REQUEST_TIMEOUT_MS
         val result = transport.sendRaw(pid, timeout, dropOnFailure = false)
         if (result !is Elm327Transport.CommandResult.Success) {
