@@ -70,6 +70,16 @@ class DashActivity : AppCompatActivity() {
 
         binding.dialSpeedo.mode = DialView.Mode.SPEEDO
         binding.dialTacho.mode = DialView.Mode.TACHO
+        // The gear sits inside the tachometer, where a gear indicator belongs.
+        binding.dialTacho.captionScale = 0.24f
+        binding.dialTacho.setOnLongClickListener {
+            AlertDialog.Builder(this)
+                .setMessage(R.string.gears_reset_confirm)
+                .setPositiveButton(android.R.string.ok) { _, _ -> app.vehicleData.resetGears() }
+                .setNegativeButton(R.string.action_cancel, null)
+                .show()
+            true
+        }
         binding.dialClock.mode = DialView.Mode.CLOCK
 
         buildTiles()
@@ -326,6 +336,7 @@ class DashActivity : AppCompatActivity() {
         binding.dialSpeedo.setValue(state.speedKmh?.toFloat())
         binding.dialSpeedo.caption = state.speedKmh?.toString()
         binding.dialTacho.setValue(state.rpm?.toFloat())
+        binding.dialTacho.caption = state.gear?.toString()
 
         tileCoolant.value = state.coolantTempC?.toString()
         // 105 °C is where this engine stops being merely warm.

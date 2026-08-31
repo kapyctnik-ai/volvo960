@@ -54,6 +54,13 @@ class DialView @JvmOverloads constructor(
             invalidate()
         }
 
+    /** Caption height as a fraction of the dial; the gear number wants to be big. */
+    var captionScale: Float = 0.11f
+        set(value) {
+            field = value
+            invalidate()
+        }
+
     private var target = 0f
     private var shown = 0f
     private var lastFrameMs = 0L
@@ -123,7 +130,9 @@ class DialView @JvmOverloads constructor(
         }
 
         caption?.let {
-            captionPaint.textSize = side * 0.11f
+            captionPaint.textSize = side * captionScale
+            // Baseline is fixed: a bigger caption grows upward into the space
+            // between the hub and the dial's printing, not down over it.
             canvas.drawText(it, cx, cy + side * 0.30f, captionPaint)
         }
     }

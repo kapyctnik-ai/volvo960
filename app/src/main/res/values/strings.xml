@@ -45,6 +45,7 @@
     <string name="dash_status_connected">%1$s</string>
     <string name="dash_status_failed">Ошибка: %1$s</string>
     <string name="dash_status_gave_up">Сдался: %1$s · приложение закрыто</string>
+    <string name="gears_reset_confirm">Забыть выученные передаточные числа? Приложение переучится за одну поездку — нужно после смены резины или коробки.</string>
     <string name="trip_reset_confirm">Обнулить trip и расход за поездку?</string>
 
     <!-- Tiles -->

@@ -53,6 +53,7 @@ class VehicleDataPoller(
     private val scope: CoroutineScope,
     private val prefs: TripStore,
     private val logger: CommandLogger,
+    private val gears: GearEstimator,
 ) {
     /** Persisted counters. Kept out of this class so they survive a restart. */
     interface TripStore {
@@ -61,6 +62,9 @@ class VehicleDataPoller(
         var tripFuelL: Double
         var tankLiters: Double
     }
+
+    /** Forgets the learnt gear ratios — after a tyre or gearbox change. */
+    fun resetGears() = gears.reset()
 
     private companion object {
         const val PID_SUPPORTED_01 = "0100"
@@ -236,7 +240,8 @@ class VehicleDataPoller(
 
             val speed = read(PID_SPEED, 0x0D, 1)?.first
             if (speed != null) readAnything = true
-            _state.update { it.copy(speedKmh = speed) }
+            val gear = gears.update(rpm, speed)
+            _state.update { it.copy(speedKmh = speed, gear = gear) }
 
             read(PID_COOLANT, 0x05, 1)?.let { (a, _) ->
                 readAnything = true

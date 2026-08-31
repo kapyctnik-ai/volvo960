@@ -1,10 +1,11 @@
 package com.volvo960.obdctl.prefs
 
 import android.content.Context
+import com.volvo960.obdctl.data.GearEstimator
 import com.volvo960.obdctl.data.VehicleDataPoller
 
 /** Small persisted settings: the chosen dongle and the running counters. */
-class AppPrefs(context: Context) : VehicleDataPoller.TripStore {
+class AppPrefs(context: Context) : VehicleDataPoller.TripStore, GearEstimator.Store {
     private val prefs = context.applicationContext.getSharedPreferences("volvo960_prefs", Context.MODE_PRIVATE)
 
     var lastDeviceAddress: String?
@@ -29,6 +30,11 @@ class AppPrefs(context: Context) : VehicleDataPoller.TripStore {
     var obdProtocol: String
         get() = prefs.getString(KEY_PROTOCOL, "3") ?: "3"
         set(value) = prefs.edit().putString(KEY_PROTOCOL, value).apply()
+
+    /** Learnt gear ratios; see [GearEstimator]. Survives restarts so the car is only learnt once. */
+    override var gearRatios: String
+        get() = prefs.getString(KEY_GEAR_RATIOS, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_GEAR_RATIOS, value).apply()
 
     override var tripKm: Double
         get() = double(KEY_TRIP_KM)
@@ -67,6 +73,7 @@ class AppPrefs(context: Context) : VehicleDataPoller.TripStore {
         private const val KEY_DEVICE_ADDRESS = "last_device_address"
         private const val KEY_TRANSPORT = "transport_preference"
         private const val KEY_PROTOCOL = "obd_protocol"
+        private const val KEY_GEAR_RATIOS = "gear_ratios"
         private const val KEY_TRIP_KM = "trip_km"
         private const val KEY_TOTAL_KM = "total_km"
         private const val KEY_TRIP_FUEL = "trip_fuel_l"

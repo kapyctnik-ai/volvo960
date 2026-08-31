@@ -1,6 +1,7 @@
 package com.volvo960.obdctl
 
 import android.app.Application
+import com.volvo960.obdctl.data.GearEstimator
 import com.volvo960.obdctl.data.VehicleDataPoller
 import com.volvo960.obdctl.prefs.AppPrefs
 import com.volvo960.obdctl.service.NotificationHelper
@@ -38,7 +39,7 @@ class VolvoApp : Application() {
         notificationHelper = NotificationHelper(this)
         transport.transportPreference = prefs.transportPreference
         transport.protocol = prefs.obdProtocol
-        vehicleData = VehicleDataPoller(transport, appScope, prefs, logger)
+        vehicleData = VehicleDataPoller(transport, appScope, prefs, logger, GearEstimator(prefs))
         vehicleData.start()
     }
 }
