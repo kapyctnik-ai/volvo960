@@ -16,7 +16,7 @@
     <string name="action_connect_now">Подключиться</string>
     <string name="action_transport">Канал: SPP или BLE</string>
     <string name="action_open_console">Консоль команд</string>
-    <string name="transport_auto">Авто (сначала SPP, потом BLE)</string>
+    <string name="transport_auto">Авто (сначала BLE, потом SPP)</string>
     <string name="transport_spp">Только SPP (Bluetooth Classic)</string>
     <string name="transport_ble">Только BLE (GATT)</string>
 

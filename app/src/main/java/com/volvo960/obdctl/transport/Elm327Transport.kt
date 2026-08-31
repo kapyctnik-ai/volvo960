@@ -313,9 +313,14 @@ class Elm327Transport(
     }
 
     /**
-     * Which radio to try. A dual-mode dongle advertises both, and which one
-     * actually carries the ELM327 is not something the type tells you — so
-     * both get tried, classic first because it is cheaper when it works.
+     * Which radio to try. A dual-mode dongle advertises both and the type does
+     * not say which one carries the ELM327, so both are tried — LE first.
+     *
+     * LE first because it is the better link for this job: the connection
+     * interval can be dropped when nobody is watching, a lost peer is reported
+     * as an event instead of having to be inferred from silence, and packets
+     * can go out on the 2 Mbit PHY. Classic remains the fallback for dongles
+     * whose LE side is advertised but not wired to the ELM327.
      */
     private fun candidateLinks(device: BluetoothDevice): List<ObdLink> {
         when (transportPreference) {
@@ -326,7 +331,7 @@ class Elm327Transport(
         return when (type) {
             BluetoothDevice.DEVICE_TYPE_LE -> listOf(BleLink(context, device, logger))
             BluetoothDevice.DEVICE_TYPE_CLASSIC -> listOf(SppLink(device, logger))
-            else -> listOf(SppLink(device, logger), BleLink(context, device, logger))
+            else -> listOf(BleLink(context, device, logger), SppLink(device, logger))
         }
     }
 
