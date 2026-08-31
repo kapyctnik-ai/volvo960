@@ -191,14 +191,17 @@ class VehicleDataPoller(
                 readAnything = true
                 _state.update { it.copy(coolantTempC = a - 40) }
             }
-            read(PID_RPM, 0x0C, 2)?.let { (a, b) ->
-                readAnything = true
-                _state.update { it.copy(rpm = ((a * 256) + b) / 4) }
-            }
-            read(PID_SPEED, 0x0D, 1)?.let { (a, _) ->
-                readAnything = true
-                _state.update { it.copy(speedKmh = a) }
-            }
+            // Speed and rpm are blanked when the request fails rather than
+            // kept: a stale speed would go on adding distance and fuel that
+            // the car never covered, and a needle frozen at the last value is
+            // a lie the driver can act on.
+            val rpm = read(PID_RPM, 0x0C, 2)?.let { (a, b) -> ((a * 256) + b) / 4 }
+            if (rpm != null) readAnything = true
+            _state.update { it.copy(rpm = rpm) }
+
+            val speed = read(PID_SPEED, 0x0D, 1)?.first
+            if (speed != null) readAnything = true
+            _state.update { it.copy(speedKmh = speed) }
             read(PID_ENGINE_LOAD, 0x04, 1)?.let { (a, _) ->
                 readAnything = true
                 _state.update { it.copy(engineLoadPercent = a * 100 / 255) }
