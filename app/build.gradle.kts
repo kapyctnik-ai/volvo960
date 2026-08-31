@@ -11,11 +11,33 @@ android {
         applicationId = "com.volvo960.obdctl"
         minSdk = 26
         targetSdk = 34
-        versionCode = 28
-        versionName = "0.28.0"
+        versionCode = 29
+        versionName = "0.29.0"
+    }
+
+    signingConfigs {
+        // A fixed debug key, committed alongside the app.
+        //
+        // Without one, Gradle signs with ~/.android/debug.keystore — which a CI
+        // runner generates fresh on every build. Every APK then carried a
+        // different signature, and Android refuses to install an update signed
+        // by a different key, so each build had to be uninstalled first.
+        //
+        // The credentials below are the ones the Android SDK itself uses for
+        // its generated debug keystore; this key is not a secret and protects
+        // nothing. It only has to stay the same from build to build.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
