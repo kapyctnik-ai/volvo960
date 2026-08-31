@@ -1,15 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-feature
         android:name="android.hardware.bluetooth"
         android:required="true" />
+    <!-- ELM327 v1.5 dongles are LE-only, so LE is not optional either. -->
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
 
-    <!-- Classic Bluetooth SPP to a paired ELM327 dongle. No discovery/scan is
-         performed by the app, so no location permission is requested. -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Scanning is how a LE dongle is found at all: they don't pair, so they
+         never appear in the bonded list. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        tools:targetApi="s"
+        android:usesPermissionFlags="neverForLocation" />
+    <!-- Before Android 12 a LE scan counts as a location capability. -->
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
@@ -27,13 +40,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Volvo960">
 
-        <!-- Landscape-first, but free to rotate: it's a cluster, not a form. -->
+        <!-- Portrait only: the tile layout is built for a phone standing up. -->
         <activity
             android:name=".ui.dash.DashActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:configChanges="keyboardHidden"
             android:exported="true"
             android:launchMode="singleTop"
-            android:screenOrientation="fullSensor">
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -41,29 +54,15 @@
         </activity>
 
         <activity
-            android:name=".ui.main.MainActivity"
-            android:exported="false"
-            android:launchMode="singleTop"
-            android:parentActivityName=".ui.dash.DashActivity" />
-
-        <activity
-            android:name=".ui.editor.ActuatorEditActivity"
-            android:exported="false"
-            android:parentActivityName=".ui.main.MainActivity" />
-
-        <activity
             android:name=".ui.console.ConsoleActivity"
             android:exported="false"
-            android:parentActivityName=".ui.main.MainActivity" />
+            android:parentActivityName=".ui.dash.DashActivity"
+            android:screenOrientation="portrait" />
 
         <service
-            android:name=".service.HoldService"
+            android:name=".service.ObdService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
-
-        <receiver
-            android:name=".service.StopActionReceiver"
-            android:exported="false" />
 
         <!-- Lets the raw traffic log be shared out of the app for diagnosis. -->
         <provider

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- One row of readings; two of them fit side by side on any phone. -->
+    <dimen name="tile_height">78dp</dimen>
+</resources>

@@ -6,8 +6,10 @@
     <color name="status_connecting">#F9A825</color>
     <color name="status_disconnected">#757575</color>
     <color name="status_failed">#C62828</color>
-    <color name="surface_dark">#121212</color>
-    <color name="surface_card">#1E1E1E</color>
-    <color name="text_primary">#F5F5F5</color>
-    <color name="text_secondary">#AAAAAA</color>
+    <color name="surface_dark">#0B0D0E</color>
+    <color name="surface_card">#15181B</color>
+    <color name="tile_bg">#15181B</color>
+    <color name="tile_border">#23292E</color>
+    <color name="text_primary">#EEF4F7</color>
+    <color name="text_secondary">#7E888F</color>
 </resources>

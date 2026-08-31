@@ -14,7 +14,6 @@ import com.volvo960.obdctl.VolvoApp
 import com.volvo960.obdctl.databinding.ActivityConsoleBinding
 import com.volvo960.obdctl.transport.ConnectionState
 import com.volvo960.obdctl.transport.Elm327Transport
-import com.volvo960.obdctl.ui.editor.ActuatorEditActivity
 import kotlinx.coroutines.launch
 
 /**
@@ -27,47 +26,34 @@ class ConsoleActivity : AppCompatActivity() {
 
     private companion object {
         /**
-         * Reproduces how a tool already working on this car asks Motronic for
-         * live data: it does not use generic OBD-II Mode 01 at all, but its own
-         * `AE01` request under Volvo's keyword-D3B0 protocol.
-         *
-         * `ATSI` is the important line. Without it the bus is never initialised
-         * — `ATKW` came back `1:-- 2:--` instead of the protocol's `1:D3 2:B0`
-         * and every request to the car failed. The same slow init is what the
-         * working fan sequence uses.
-         *
-         * `ATKW` appears twice on purpose: before the init it should be empty,
-         * after it the keyword proves the ECU is actually talking.
+         * What the car will and won't answer, in one run. `0100`/`0120`/`0140`
+         * are the supported-PID bitmaps; the rest are the readings the fuel
+         * computation depends on, asked directly so a bitmap that lies (some
+         * ECUs do) is caught immediately.
          */
-        val MOTRONIC_PROBE = listOf(
-            "ATPC",
-            "ATD",
+        val CAPABILITY_PROBE = listOf(
             "ATZ",
             "ATE0",
             "ATL0",
-            "ATS0",
-            "ATH1",
-            "ATAL",
-            "ATSP 3",
-            "ATKW0",
-            "ATSR 13",
-            "ATAT 1",
-            "ATST 32",
-            "ATIIA 7A",
-            "ATWM 82 7A 13 A1",
-            "ATSI",
-            "ATKW",
-            "ATSH 82 7A 13",
-            "A1",
-            "ATSH 83 7A 13",
-            "AE01",
-            "AE01",
-            "AE02",
+            "ATH0",
+            "ATSP3",
+            "0100",
+            "0120",
+            "0140",
+            "0105",
+            "010C",
+            "010D",
+            "010B",
+            "010F",
+            "0110",
+            "0106",
+            "0107",
+            "012F",
+            "015E",
         )
     }
 
     private lateinit var binding: ActivityConsoleBinding
-    private var lastCommand: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,14 +70,7 @@ class ConsoleActivity : AppCompatActivity() {
                 false
             }
         }
-        binding.buttonSaveAsActuator.setOnClickListener {
-            val cmd = lastCommand ?: return@setOnClickListener
-            startActivity(
-                Intent(this, ActuatorEditActivity::class.java)
-                    .putExtra(ActuatorEditActivity.EXTRA_PREFILL_COMMAND, cmd)
-            )
-        }
-        binding.buttonRunMotronicProbe.setOnClickListener { runScript(MOTRONIC_PROBE) }
+        binding.buttonRunProbe.setOnClickListener { runScript(CAPABILITY_PROBE) }
         binding.buttonShareLog.setOnClickListener { shareLog() }
         binding.buttonClearLog.setOnClickListener {
             (application as VolvoApp).logger.clear()
@@ -108,7 +87,7 @@ class ConsoleActivity : AppCompatActivity() {
                 app.transport.connectionState.collect { state ->
                     binding.buttonSendRaw.isEnabled = state is ConnectionState.Connected
                     binding.textConsoleStatus.text = when (state) {
-                        is ConnectionState.Connected -> getString(R.string.status_connected, state.deviceName)
+                        is ConnectionState.Connected -> getString(R.string.dash_status_connected, state.deviceName)
                         else -> getString(R.string.console_not_connected)
                     }
                 }
@@ -132,8 +111,6 @@ class ConsoleActivity : AppCompatActivity() {
             when (val result = app.transport.sendRaw(command)) {
                 is Elm327Transport.CommandResult.Success -> {
                     appendLine(result.response.ifEmpty { "(пустой ответ)" })
-                    lastCommand = command
-                    binding.buttonSaveAsActuator.isEnabled = true
                 }
                 is Elm327Transport.CommandResult.Error -> appendLine("ошибка: ${result.message}")
             }
@@ -155,8 +132,6 @@ class ConsoleActivity : AppCompatActivity() {
                 appendLine("  $reply")
             }
             appendLine("=== конец прогона ===")
-            lastCommand = commands.lastOrNull()
-            binding.buttonSaveAsActuator.isEnabled = lastCommand != null
         }
     }
 

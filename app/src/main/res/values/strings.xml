@@ -6,70 +6,60 @@
     <!-- Connection -->
     <string name="status_disconnected">Отключено</string>
     <string name="status_connecting">Подключение…</string>
-    <string name="status_connected">Подключено: %1$s</string>
-    <string name="status_failed">Ошибка: %1$s</string>
-    <string name="action_connect">Подключить</string>
+    <string name="status_no_device">Адаптер не найден</string>
     <string name="action_disconnect">Отключить</string>
     <string name="action_choose_device">Выбрать адаптер</string>
-    <string name="no_device_selected">Адаптер не выбран</string>
-    <string name="coolant_temp_value">ОЖ: %1$d °C</string>
-    <string name="coolant_temp_unknown">ОЖ: —</string>
-    <string name="no_paired_devices">Нет сопряжённых Bluetooth-устройств. Сопрягите ELM327 в настройках Android.</string>
-    <string name="dialog_title_choose_device">Сопряжённые устройства</string>
-
-    <!-- Main screen -->
-    <string name="section_active_holds">Активные удержания</string>
-    <string name="section_actuators">Актуаторы</string>
-    <string name="action_stop_all">Остановить всё</string>
-    <string name="action_stop">Стоп</string>
-    <string name="action_open_console">Консоль команд</string>
-    <string name="action_add_actuator">Добавить актуатор</string>
-    <string name="empty_active_holds">Нет активных удержаний</string>
-    <string name="empty_actuators">Реестр пуст. Подберите команду в консоли и сохраните как актуатор.</string>
-    <string name="hold_status_running">удержание · каждые %1$d с</string>
-    <string name="hold_status_stale">нет ответа %1$d с</string>
-
-    <!-- Actuator card -->
-    <string name="behavior_once">разово</string>
-    <string name="behavior_hold_repeat">удержание</string>
-    <string name="action_send_once">Отправить</string>
-    <string name="action_edit">Изменить</string>
-    <string name="action_delete">Удалить</string>
-    <string name="confirm_delete_actuator">Удалить актуатор «%1$s»?</string>
-
-    <!-- Warning dialog -->
-    <string name="warning_title">Внимание</string>
-    <string name="warning_message">Вы включаете «%1$s» на реальном автомобиле. ECU защёлкивает выход: он продолжит работать даже с вынутым ключом, пока вы явно не выключите тумблер или не сработает автостоп. Если приложение будет закрыто принудительно, команда выключения не уйдёт — узел останется включённым и посадит аккумулятор. Управляйте только тем, что безопасно тестировать на стоянке.</string>
-    <string name="warning_dont_ask_again">Больше не спрашивать для этого актуатора</string>
-    <string name="action_proceed">Включить</string>
     <string name="action_cancel">Отмена</string>
+    <string name="confirm_disconnect">Отключиться от адаптера?</string>
+    <string name="bluetooth_off">Bluetooth выключен. Включите его и повторите.</string>
+    <string name="dialog_title_choose_device">Адаптер (сопряжённые + поиск BLE)</string>
 
-    <!-- Actuator editor -->
-    <string name="editor_title_new">Новый актуатор</string>
-    <string name="editor_title_edit">Редактирование актуатора</string>
-    <string name="field_name">Название</string>
-    <string name="field_init_script">Init-скрипт (по одной команде в строке, шлётся 1 раз)</string>
-    <string name="field_command">Команда включения (одна или несколько строк)</string>
-    <string name="action_preset_volvo_m44">Шаблон: Volvo M4.4 (KWP D3B0, ECU 7A)</string>
-    <string name="preset_applied">Шаблон подставлен. Замени XX на реальный байт.</string>
-    <string name="field_off_command">Команда выключения (необязательно)</string>
-    <string name="field_behavior">Тип поведения</string>
-    <string name="field_repeat_interval">Интервал повтора, мс</string>
-    <string name="field_autostop_timeout">Автостоп удержания, мс</string>
-    <string name="field_response_timeout">Таймаут ответа адаптера, мс</string>
-    <string name="field_notes">Заметки</string>
-    <string name="action_save">Сохранить</string>
-    <string name="error_name_required">Укажите название</string>
-    <string name="error_command_required">Укажите команду</string>
+    <!-- Dashboard -->
+    <string name="dash_status_disconnected">Нет связи · нажмите, чтобы выбрать адаптер</string>
+    <string name="dash_status_connecting">Подключение…</string>
+    <string name="dash_status_connected">%1$s</string>
+    <string name="dash_status_failed">Ошибка: %1$s</string>
+    <string name="dash_status_gave_up">Сдался: %1$s · приложение закрыто</string>
+    <string name="trip_reset_confirm">Обнулить trip и расход за поездку?</string>
+
+    <!-- Tiles -->
+    <string name="tile_coolant">Температура ОЖ</string>
+    <string name="tile_rpm">Обороты</string>
+    <string name="tile_consumption">Расход</string>
+    <string name="tile_flow">Расход</string>
+    <string name="tile_average">Средний расход</string>
+    <string name="tile_fuel_level">Уровень топлива</string>
+    <string name="tile_trip">Trip (удержать — сброс)</string>
+    <string name="tile_total">Пробег</string>
+    <string name="tile_load">Нагрузка</string>
+    <string name="tile_intake">Впуск</string>
+    <string name="tile_tank">БАК</string>
+    <string name="unit_rpm">об/мин</string>
+    <string name="unit_l100">л/100км</string>
+    <string name="unit_lph">л/ч</string>
+    <string name="unit_km">км</string>
+
+    <!-- Where the consumption figure comes from -->
+    <string name="fuel_source_ecu">расход от ЭБУ</string>
+    <string name="fuel_source_maf">расход по ДМРВ</string>
+    <string name="fuel_source_map">расход по MAP (оценка)</string>
+
+    <!-- Tank -->
+    <string name="tank_value">%1$s / %2$d л</string>
+    <string name="tank_range">≈ %1$d км</string>
+    <string name="tank_plus_10">+10</string>
+    <string name="tank_plus_20">+20</string>
+    <string name="tank_minus_5">−5</string>
+    <string name="tank_set">Ввести</string>
+    <string name="tank_dialog_title">Литров в баке (макс %1$d)</string>
 
     <!-- Console -->
     <string name="console_title">Консоль команд</string>
     <string name="console_hint_command">Команда (например ATZ)</string>
     <string name="action_send">Отправить</string>
-    <string name="action_save_as_actuator">Сохранить как актуатор</string>
     <string name="console_no_response_yet">Ответов пока нет</string>
     <string name="console_not_connected">Сначала подключитесь к адаптеру</string>
-    <string name="action_probe_motronic">Прогон: Motronic AE01</string>
+    <string name="action_probe_pids">Прогон: какие PID отвечают</string>
     <string name="console_hint_multiline">Можно вставить несколько строк — уйдут одним пакетом</string>
     <string name="action_share_log">Выгрузить лог</string>
     <string name="action_clear_log">Очистить лог</string>
@@ -79,30 +69,18 @@
 
     <!-- Service / notifications -->
     <string name="notif_channel_status_name">Статус подключения</string>
-    <string name="notif_channel_status_desc">Foreground-уведомление о подключении к ELM327 и активных удержаниях</string>
+    <string name="notif_channel_status_desc">Foreground-уведомление о связи с ELM327</string>
     <string name="notif_channel_alerts_name">Предупреждения</string>
-    <string name="notif_channel_alerts_desc">Автостоп удержания при потере связи с адаптером</string>
-    <string name="notif_title_connected">ELM327 подключён</string>
-    <string name="notif_title_holding">Активные удержания: %1$d</string>
-    <string name="notif_action_stop_all">Остановить всё</string>
-    <string name="notif_action_stop_one">Стоп: %1$s</string>
-    <string name="notif_watchdog_title">Удержание остановлено</string>
-    <string name="notif_watchdog_body">«%1$s»: %2$s. Автостоп сработал.</string>
+    <string name="notif_channel_alerts_desc">Сообщение о том, что связь потеряна и приложение закрылось</string>
+    <string name="notif_title_connected">960-Dash · связь есть</string>
+    <string name="notif_title_connecting">960-Dash · подключение</string>
+    <string name="notif_title_retrying">960-Dash · переподключение</string>
+    <string name="notif_title_giving_up">960-Dash · выключаюсь</string>
+    <string name="notif_title_idle">960-Dash</string>
+    <string name="notif_text_live">%1$d км/ч · ОЖ %2$d °C</string>
+    <string name="notif_action_stop">Стоп</string>
+    <string name="notif_shutdown_title">960-Dash закрылся</string>
+    <string name="notif_shutdown_body">Адаптер не отвечает: %1$s. Приложение выключено, чтобы не сажать батарею.</string>
 
     <string name="unit_ms">мс</string>
-
-    <!-- Dashboard -->
-    <string name="auto_fan_short">АВТО</string>
-    <string name="fan_low_short">ВЕНТ 1</string>
-    <string name="fan_high_short">ВЕНТ 2</string>
-    <string name="trip_reset_short">TRIP 0</string>
-    <string name="controls_short">УПР.</string>
-    <string name="dash_status_disconnected">Нет связи · нажмите УПР. для подключения</string>
-    <string name="dash_status_connecting">Подключение…</string>
-    <string name="dash_status_connected">%1$s · авто-вентилятор при %2$d °C</string>
-    <string name="dash_status_failed">Ошибка: %1$s</string>
-    <string name="fan_not_ready">Карточка вентилятора не найдена</string>
-    <string name="trip_reset_done">Trip сброшен</string>
-    <string name="auto_fan_on">Авто-вентилятор включён, порог %1$d °C</string>
-    <string name="auto_fan_off">Авто-вентилятор выключен</string>
 </resources>

@@ -1,17 +1,18 @@
-Photographic cluster artwork. Present, so the dashboard composites the real
-panel instead of drawing its own approximation.
+Dial faces cut out of the photograph of the real 960 cluster, used one at a
+time by the portrait tile layout.
 
-  cluster_face.png       photograph of the panel with the needles removed,
-                         daylight base blended with the illuminated overlay,
-                         tachometer redline baked in. 2020x620.
-  cluster_geometry.json  dial centres, scale angles and needle outlines, in
-                         face pixels; also the counter windows painted over
-                         and the trip reset knob's touch target.
+  piece_speedo.png  490x490, hub at (245, 245)
+  piece_tacho.png   420x420, hub at (200, 204)
+  piece_clock.png   410x410, hub at (198, 192)
 
-Needles are not images: they are flat tapered shapes, so the app draws them
-from the outlines in the geometry file. Delete either file and the app falls
-back to drawing every gauge itself.
+Each piece is a circular crop with a transparent surround, framed on the
+printing rather than on the hub — which is why the hub is not the centre of the
+image. Those hub coordinates live in ui/dash/DialArt.kt and must be updated
+together with the artwork.
 
-Source: docs/cluster-asset-prompt.md describes what to produce; the current
-artwork came from that prompt, with the face and glow layers composited and
-the geometry read off the source overlay.
+Needles are not images: they are flat tapered shapes drawn by DialView from the
+outlines in DialArt, so they stay sharp at any size and cost nothing to move.
+
+The crops were taken from the earlier full-panel composite (see git history and
+docs/cluster-asset-prompt.md) at these centres and radii, in that image's
+pixels: clock (245,386) r205, speedo (748,370) r245, tacho (1262,375) r210.

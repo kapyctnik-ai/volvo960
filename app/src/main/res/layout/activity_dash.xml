@@ -1,39 +1,185 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0B0D0E">
+    android:background="@color/surface_dark"
+    android:orientation="vertical">
 
-    <com.volvo960.obdctl.ui.dash.DashboardView
-        android:id="@+id/dashboard"
+    <!-- Tap to pick a dongle, long-press for the raw console. The status line
+         is the only chrome the dashboard has. -->
+    <TextView
+        android:id="@+id/textStatus"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-
-    <!-- Only surfaces when something is wrong; the cluster stays clean otherwise. -->
-    <TextView
-        android:id="@+id/textDashStatus"
-        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="6dp"
-        android:alpha="0.75"
-        android:textColor="#7FF2F4"
-        android:textSize="11sp"
-        android:visibility="gone" />
+        android:background="#101315"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp" />
 
-    <!-- Live traffic, shown while no reading has arrived: without seeing the
-         actual exchange there is no way to tell an unsent request from an
-         ignored one. Hides itself as soon as a gauge has a value. -->
-    <TextView
-        android:id="@+id/textDebugLog"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|start"
-        android:layout_margin="8dp"
-        android:background="#B0000000"
-        android:fontFamily="monospace"
-        android:padding="6dp"
-        android:textColor="#9BF7F9"
-        android:textSize="9sp"
-        android:visibility="gone" />
-</FrameLayout>
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="8dp">
+
+            <!-- Speed is the reading you glance at, so it gets the most room.
+                 The height caps it: a full-width dial on a tall phone would
+                 push everything else off the screen. -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="270dp">
+
+                <com.volvo960.obdctl.ui.dash.DialView
+                    android:id="@+id/dialSpeedo"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="160dp"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <com.volvo960.obdctl.ui.dash.DialView
+                    android:id="@+id/dialTacho"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center"
+                    android:layout_weight="1" />
+
+                <Space
+                    android:layout_width="8dp"
+                    android:layout_height="1dp" />
+
+                <com.volvo960.obdctl.ui.dash.DialView
+                    android:id="@+id/dialClock"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
+            <GridLayout
+                android:id="@+id/gridTiles"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:columnCount="2"
+                android:useDefaultMargins="false" />
+
+            <!-- The tank is hand-managed: fill it in after a fill-up and the
+                 computed flow draws it down. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/tile_bg"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tile_tank"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:baselineAligned="false"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/textTank"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textColor="@color/text_primary"
+                        android:textSize="30sp" />
+
+                    <TextView
+                        android:id="@+id/textRange"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="bottom"
+                        android:paddingBottom="6dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <ProgressBar
+                    android:id="@+id/progressTank"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="6dp"
+                    android:layout_marginTop="6dp"
+                    android:max="800" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/buttonPlus10"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/tank_plus_10" />
+
+                    <Button
+                        android:id="@+id/buttonPlus20"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:text="@string/tank_plus_20" />
+
+                    <Button
+                        android:id="@+id/buttonMinus5"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:text="@string/tank_minus_5" />
+
+                    <Button
+                        android:id="@+id/buttonSetTank"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1.2"
+                        android:text="@string/tank_set" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Live traffic, shown until a reading arrives: without seeing the
+                 exchange there is no telling an unsent request from an ignored
+                 one. Hides itself once a tile has a value. -->
+            <TextView
+                android:id="@+id/textDebugLog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="#B0000000"
+                android:fontFamily="monospace"
+                android:padding="6dp"
+                android:textColor="#9BF7F9"
+                android:textSize="9sp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -1,0 +1,182 @@
+package com.volvo960.obdctl.service
+
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothManager
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.PowerManager
+import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.lifecycleScope
+import com.volvo960.obdctl.R
+import com.volvo960.obdctl.VolvoApp
+import com.volvo960.obdctl.transport.ConnectionState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+import kotlin.system.exitProcess
+
+/**
+ * Owns the connection for as long as it is worth owning.
+ *
+ * The whole point of running as a foreground service is that switching away
+ * from the app — or locking the screen — doesn't interrupt the link. The whole
+ * point of [Elm327Transport.onGaveUp] is the opposite: once the adapter is
+ * plainly not there any more, the service and the process both go away rather
+ * than sit on the radio draining the battery in a parked car.
+ */
+@SuppressLint("MissingPermission")
+class ObdService : LifecycleService() {
+
+    companion object {
+        const val ACTION_START = "com.volvo960.obdctl.action.START"
+        const val ACTION_STOP = "com.volvo960.obdctl.action.STOP"
+        const val EXTRA_ADDRESS = "device_address"
+
+        fun start(context: Context, address: String) {
+            val intent = Intent(context, ObdService::class.java).apply {
+                action = ACTION_START
+                putExtra(EXTRA_ADDRESS, address)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        fun stop(context: Context) {
+            context.startService(Intent(context, ObdService::class.java).apply { action = ACTION_STOP })
+        }
+    }
+
+    private val app: VolvoApp get() = application as VolvoApp
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var started = false
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+        when (intent?.action) {
+            ACTION_STOP -> {
+                shutdown(kill = false, reason = null)
+                return START_NOT_STICKY
+            }
+            else -> {
+                val address = intent?.getStringExtra(EXTRA_ADDRESS) ?: app.prefs.lastDeviceAddress
+                if (address == null) {
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                startConnection(address)
+            }
+        }
+        // Not sticky: a process the system killed should stay dead until the
+        // user opens the app again. Restarting it behind their back is exactly
+        // the battery drain this design is trying to avoid.
+        return START_NOT_STICKY
+    }
+
+    private fun startConnection(address: String) {
+        goForeground(getString(R.string.notif_title_connecting), address)
+        if (started) return
+        started = true
+        acquireWakeLock()
+
+        app.transport.onGaveUp = {
+            val reason = (app.transport.connectionState.value as? ConnectionState.GaveUp)?.reason
+                ?: getString(R.string.status_disconnected)
+            shutdown(kill = true, reason = reason)
+        }
+
+        val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+        val device = try {
+            adapter?.getRemoteDevice(address)
+        } catch (e: IllegalArgumentException) {
+            null
+        }
+        if (device == null) {
+            shutdown(kill = false, reason = getString(R.string.status_no_device))
+            return
+        }
+        app.prefs.lastDeviceAddress = address
+        app.transport.connect(device)
+
+        lifecycleScope.launch {
+            combine(app.transport.connectionState, app.vehicleData.state) { state, vehicle ->
+                state to vehicle
+            }.collect { (state, vehicle) ->
+                val title = when (state) {
+                    is ConnectionState.Connected -> getString(R.string.notif_title_connected)
+                    ConnectionState.Connecting -> getString(R.string.notif_title_connecting)
+                    is ConnectionState.Failed -> getString(R.string.notif_title_retrying)
+                    is ConnectionState.GaveUp -> getString(R.string.notif_title_giving_up)
+                    ConnectionState.Disconnected -> getString(R.string.notif_title_idle)
+                }
+                val text = when (state) {
+                    is ConnectionState.Connected -> getString(
+                        R.string.notif_text_live,
+                        vehicle.speedKmh ?: 0,
+                        vehicle.coolantTempC ?: 0,
+                    )
+                    is ConnectionState.Failed -> state.reason
+                    is ConnectionState.GaveUp -> state.reason
+                    else -> address
+                }
+                goForeground(title, text)
+            }
+        }
+    }
+
+    private fun goForeground(title: String, text: String) {
+        startForeground(
+            NotificationHelper.FOREGROUND_NOTIFICATION_ID,
+            app.notificationHelper.buildForegroundNotification(title, text),
+        )
+    }
+
+    /**
+     * A partial wake lock is what keeps polling alive with the screen off; the
+     * foreground service on its own does not stop the CPU from sleeping.
+     */
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "volvo960:obd").apply {
+            setReferenceCounted(false)
+            acquire()
+        }
+    }
+
+    /**
+     * [kill] is the user's own rule: when the adapter is gone for good, take
+     * the process with it. Stopping the service alone leaves the app resident,
+     * and that is what was flattening the phone overnight.
+     */
+    private fun shutdown(kill: Boolean, reason: String?) {
+        if (reason != null && kill) app.notificationHelper.postShutdownAlert(reason)
+        app.transport.onGaveUp = null
+        app.transport.disconnect()
+        // Only a shutdown for good releases the transport: release() cancels
+        // its scope permanently, and a plain stop has to leave it reusable.
+        if (kill) app.transport.release()
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
+        started = false
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+        if (kill) {
+            // Give the notification a moment to land, then take the process
+            // down — Activities included.
+            lifecycleScope.launch {
+                delay(600)
+                exitProcess(0)
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
+        super.onDestroy()
+    }
+}
