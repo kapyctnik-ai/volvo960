@@ -22,9 +22,11 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.volvo960.obdctl.R
 import com.volvo960.obdctl.VolvoApp
 import com.volvo960.obdctl.data.FuelSource
+import com.volvo960.obdctl.data.SelfTest
 import com.volvo960.obdctl.data.TANK_CAPACITY_L
 import com.volvo960.obdctl.data.VehicleState
 import com.volvo960.obdctl.databinding.ActivityDashBinding
+import com.volvo960.obdctl.prefs.AppPrefs
 import com.volvo960.obdctl.service.ObdService
 import com.volvo960.obdctl.transport.ConnectionState
 import com.volvo960.obdctl.ui.console.ConsoleActivity
@@ -155,25 +157,109 @@ class DashActivity : AppCompatActivity() {
     }
 
     /** Reconnects to the last dongle on launch; that is what the app is for. */
-    private fun autoConnect() {
+    private fun autoConnect(force: Boolean = false) {
         val address = app.prefs.lastDeviceAddress ?: return
-        if (app.transport.connectionState.value is ConnectionState.Disconnected) {
+        if (force || app.transport.connectionState.value is ConnectionState.Disconnected) {
             ObdService.start(this, address)
         }
     }
 
     private fun onStatusTapped() {
-        val state = app.transport.connectionState.value
-        if (state is ConnectionState.Connected || state is ConnectionState.Connecting) {
-            AlertDialog.Builder(this)
-                .setMessage(R.string.confirm_disconnect)
-                .setPositiveButton(R.string.action_disconnect) { _, _ -> ObdService.stop(this) }
-                .setNeutralButton(R.string.action_choose_device) { _, _ -> pickDevice() }
-                .setNegativeButton(R.string.action_cancel, null)
-                .show()
-        } else {
-            pickDevice()
+        val connected = app.transport.connectionState.value is ConnectionState.Connected
+        val items = arrayOf(
+            getString(R.string.action_self_test),
+            getString(R.string.action_choose_device),
+            getString(R.string.action_transport),
+            getString(if (connected) R.string.action_disconnect else R.string.action_connect_now),
+            getString(R.string.action_open_console),
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.menu_title)
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> runSelfTest()
+                    1 -> pickDevice()
+                    2 -> chooseTransport()
+                    3 -> if (connected) ObdService.stop(this) else autoConnect(force = true)
+                    else -> startActivity(Intent(this, ConsoleActivity::class.java))
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    /**
+     * Lets the radio be forced. A dual-mode dongle advertises Classic and LE
+     * both, and "auto" takes Classic first because it costs less battery — but
+     * on some dongles only the LE side is really wired to the ELM327.
+     */
+    private fun chooseTransport() {
+        val values = listOf(AppPrefs.TRANSPORT_AUTO, AppPrefs.TRANSPORT_SPP, AppPrefs.TRANSPORT_BLE)
+        val labels = arrayOf(
+            getString(R.string.transport_auto),
+            getString(R.string.transport_spp),
+            getString(R.string.transport_ble),
+        )
+        val current = values.indexOf(app.prefs.transportPreference).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.action_transport)
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                app.prefs.transportPreference = values[which]
+                app.transport.transportPreference = values[which]
+                dialog.dismiss()
+                // The choice only takes effect on a fresh attempt.
+                val address = app.prefs.lastDeviceAddress
+                if (address != null) {
+                    ObdService.stop(this)
+                    ObdService.start(this, address)
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    /**
+     * Ignition on, engine off — that is all this needs, and it says which half
+     * is at fault instead of leaving a screen full of dashes to interpret.
+     */
+    private fun runSelfTest() {
+        if (app.transport.connectionState.value !is ConnectionState.Connected) {
+            Toast.makeText(this, R.string.console_not_connected, Toast.LENGTH_LONG).show()
+            return
         }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.selftest_title)
+            .setMessage(getString(R.string.selftest_running))
+            .setPositiveButton(android.R.string.ok, null)
+            .create()
+        dialog.show()
+        lifecycleScope.launch {
+            val result = SelfTest(app.transport).run(app.prefs.obdProtocol)
+            if (result.workingProtocol != null && result.workingProtocol != app.prefs.obdProtocol) {
+                app.prefs.obdProtocol = result.workingProtocol
+                app.transport.protocol = result.workingProtocol
+            }
+            dialog.setMessage(selfTestReport(result))
+        }
+    }
+
+    private fun selfTestReport(result: SelfTest.Result): String {
+        val lines = mutableListOf<String>()
+        lines += if (result.adapterId != null) {
+            getString(R.string.selftest_adapter_ok, result.adapterId.replace("\n", " "))
+        } else {
+            getString(R.string.selftest_adapter_bad)
+        }
+        result.voltage?.let { lines += getString(R.string.selftest_voltage, it) }
+        result.protocolName?.let { lines += getString(R.string.selftest_protocol, it) }
+        lines += if (result.ecuAnswered) {
+            getString(R.string.selftest_ecu_ok, result.workingProtocol.orEmpty())
+        } else {
+            getString(R.string.selftest_ecu_bad)
+        }
+        result.coolantC?.let { lines += getString(R.string.selftest_coolant, it) }
+        result.supportedPids?.let { lines += getString(R.string.selftest_raw, it.replace("\n", " ")) }
+        return lines.joinToString("\n\n")
     }
 
     private fun pickDevice() {

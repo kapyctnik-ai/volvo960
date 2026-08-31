@@ -11,6 +11,26 @@
     <string name="action_choose_device">Выбрать адаптер</string>
     <string name="action_cancel">Отмена</string>
     <string name="confirm_disconnect">Отключиться от адаптера?</string>
+    <string name="menu_title">Связь</string>
+    <string name="action_self_test">Проверка связи (зажигание, без запуска)</string>
+    <string name="action_connect_now">Подключиться</string>
+    <string name="action_transport">Канал: SPP или BLE</string>
+    <string name="action_open_console">Консоль команд</string>
+    <string name="transport_auto">Авто (сначала SPP, потом BLE)</string>
+    <string name="transport_spp">Только SPP (Bluetooth Classic)</string>
+    <string name="transport_ble">Только BLE (GATT)</string>
+
+    <!-- Self-test -->
+    <string name="selftest_title">Проверка связи</string>
+    <string name="selftest_running">Гоняю: адаптер, напряжение, протокол, ответ ЭБУ. До 40 с.</string>
+    <string name="selftest_adapter_ok">Адаптер отвечает: %1$s</string>
+    <string name="selftest_adapter_bad">Адаптер молчит. Это не машина, это дырка в канале — переподключись или смени канал на BLE.</string>
+    <string name="selftest_voltage">Напряжение на колодке: %1$s</string>
+    <string name="selftest_protocol">Протокол адаптера: %1$s</string>
+    <string name="selftest_ecu_ok">ЭБУ отвечает. Рабочий протокол ATSP%1$s — сохранил, дальше будет использоваться он.</string>
+    <string name="selftest_ecu_bad">ЭБУ молчит на всех протоколах (3, 4, 5, авто). Проверь: зажигание включено, адаптер в колодке до щелчка. Если напряжение ниже 12 В — зажигание выключено.</string>
+    <string name="selftest_coolant">Температура ОЖ: %1$d °C — данные идут.</string>
+    <string name="selftest_raw">Ответ 0100: %1$s</string>
     <string name="bluetooth_off">Bluetooth выключен. Включите его и повторите.</string>
     <string name="dialog_title_choose_device">Адаптер (сопряжённые + поиск BLE)</string>
     <string name="dialog_title_choose_device_scanning">Поиск BLE… найдено %1$d</string>

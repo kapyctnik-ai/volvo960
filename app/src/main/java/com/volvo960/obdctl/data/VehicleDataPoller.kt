@@ -84,10 +84,23 @@ class VehicleDataPoller(
          * the 5-baud initialisation, which alone takes a couple of seconds.
          */
         const val REQUEST_TIMEOUT_MS = 8_000L
+        /**
+         * Once anything has answered, the slow init is behind us and a request
+         * that takes five seconds is not going to arrive. Waiting the full
+         * eight for each of ten PIDs is most of a minute of radio per cycle.
+         */
+        const val REQUEST_TIMEOUT_WARM_MS = 4_000L
         const val CYCLE_PAUSE_MS = 120L
         /** Backs off after repeated silence instead of hammering the bus. */
         const val BACKOFF_AFTER_FAILURES = 3
         const val BACKOFF_MS = 5_000L
+        /** A car that has said nothing for a while is off; stop chasing it. */
+        const val DEEP_BACKOFF_AFTER_FAILURES = 10
+        const val DEEP_BACKOFF_MS = 30_000L
+        /** A PID that never answers is dropped after this many silent tries. */
+        const val MUTE_AFTER_SILENT = 3
+        /** ...and retried this often, in case it only sleeps with the engine off. */
+        const val RETRY_MUTED_EVERY = 40
         /** Stop counting distance and fuel once readings stop arriving. */
         const val SAMPLE_STALE_MS = 6_000L
         /** Slow-moving readings don't need a slot in every cycle. */
@@ -118,6 +131,8 @@ class VehicleDataPoller(
 
     /** Filled by [probeCapabilities]; null until the car has been asked. */
     private var supported: Set<Int>? = null
+    private val silentTries = HashMap<String, Int>()
+    private var everAnswered = false
     private var shortTrim: Double? = null
     private var longTrim: Double? = null
     private var lastMapKpa: Int? = null
@@ -177,11 +192,11 @@ class VehicleDataPoller(
                 lastSampleAtMs = 0L
                 consecutiveFailures = 0
                 supported = null
+                silentTries.clear()
+                everAnswered = false
                 delay(1_000)
                 continue
             }
-
-            if (supported == null) probeCapabilities()
 
             var readAnything = false
             // Coolant first: it is the one reading this car is known to answer,
@@ -232,8 +247,19 @@ class VehicleDataPoller(
             } else {
                 consecutiveFailures++
             }
+
+            // Asked once, after real readings have had their turn: three
+            // unanswered bitmap requests at the head of the first cycle is
+            // half a minute of blank screen before anything is even tried.
+            if (supported == null && cycle >= 1) probeCapabilities()
             cycle++
-            delay(if (consecutiveFailures >= BACKOFF_AFTER_FAILURES) BACKOFF_MS else CYCLE_PAUSE_MS)
+            delay(
+                when {
+                    consecutiveFailures >= DEEP_BACKOFF_AFTER_FAILURES -> DEEP_BACKOFF_MS
+                    consecutiveFailures >= BACKOFF_AFTER_FAILURES -> BACKOFF_MS
+                    else -> CYCLE_PAUSE_MS
+                }
+            )
         }
     }
 
@@ -242,9 +268,9 @@ class VehicleDataPoller(
      * 32-bit map where the top bit is the next PID up; bit 0 of each map says
      * whether the following map exists.
      *
-     * A car that refuses to answer leaves [supported] as an empty set, which
-     * means "ask for everything and let NO DATA sort it out" — better than
-     * silently showing nothing.
+     * The result is diagnostic only — it is logged, never used to decide what
+     * to ask for. Bitmaps on old ECUs under-report, and a reading that is not
+     * requested because a bitmap denied it is a reading lost for nothing.
      */
     private suspend fun probeCapabilities() {
         val found = mutableSetOf<Int>()
@@ -269,11 +295,6 @@ class VehicleDataPoller(
         }
     }
 
-    private fun supports(pid: Int): Boolean {
-        val known = supported ?: return true
-        return known.isEmpty() || known.contains(pid)
-    }
-
     private suspend fun readTrims() {
         shortTrim = read(PID_SHORT_TRIM, 0x06, 1)?.let { (a, _) -> (a - 128) * 100.0 / 128.0 }
         longTrim = read(PID_LONG_TRIM, 0x07, 1)?.let { (a, _) -> (a - 128) * 100.0 / 128.0 }
@@ -281,20 +302,17 @@ class VehicleDataPoller(
 
     /** Litres per hour, by whichever tier the car supports. */
     private suspend fun readFuelRate(): Pair<Double, FuelSource>? {
-        if (supports(0x5E)) {
-            read(PID_FUEL_RATE, 0x5E, 2)?.let { (a, b) ->
-                return ((a * 256 + b) / 20.0) to FuelSource.ECU_FUEL_RATE
-            }
+        // Tried by what actually answers, not by what the bitmap claims: the
+        // silence counter drops a PID after three ignored requests anyway, and
+        // an ECU whose bitmap under-reports would otherwise never be asked.
+        read(PID_FUEL_RATE, 0x5E, 2)?.let { (a, b) ->
+            return ((a * 256 + b) / 20.0) to FuelSource.ECU_FUEL_RATE
         }
-        if (supports(0x10)) {
-            read(PID_MAF, 0x10, 2)?.let { (a, b) ->
-                val mafGs = (a * 256 + b) / 100.0
-                return litresPerHour(mafGs) to FuelSource.MAF
-            }
+        read(PID_MAF, 0x10, 2)?.let { (a, b) ->
+            val mafGs = (a * 256 + b) / 100.0
+            return litresPerHour(mafGs) to FuelSource.MAF
         }
-        if (supports(0x0B)) {
-            read(PID_MAP, 0x0B, 1)?.let { (a, _) -> lastMapKpa = a }
-        }
+        read(PID_MAP, 0x0B, 1)?.let { (a, _) -> lastMapKpa = a }
         val map = lastMapKpa ?: return null
         val rpm = _state.value.rpm ?: return null
         val iat = _state.value.intakeTempC ?: 20
@@ -379,14 +397,33 @@ class VehicleDataPoller(
      * Returns null whenever the car declined or the reply didn't parse.
      */
     private suspend fun read(pid: String, pidEcho: Int, wantBytes: Int): Pair<Int, Int>? {
-        if (!supports(pidEcho)) return null
-        val bytes = readBytes(pid, pidEcho, wantBytes) ?: return null
+        if (isMuted(pid)) return null
+        val bytes = readBytes(pid, pidEcho, wantBytes)
+        if (bytes == null) {
+            silentTries[pid] = (silentTries[pid] ?: 0) + 1
+            return null
+        }
+        silentTries.remove(pid)
+        everAnswered = true
         val first = bytes.getOrNull(0) ?: return null
         return first to (bytes.getOrNull(1) ?: 0)
     }
 
+    /**
+     * A PID this ECU ignores costs a full timeout every cycle, and this car
+     * ignores plenty of them. After a few silent tries it is dropped, and only
+     * retried occasionally — some readings genuinely only appear with the
+     * engine running.
+     */
+    private fun isMuted(pid: String): Boolean {
+        val silent = silentTries[pid] ?: return false
+        if (silent < MUTE_AFTER_SILENT) return false
+        return cycle % RETRY_MUTED_EVERY != 0
+    }
+
     private suspend fun readBytes(pid: String, pidEcho: Int, wantBytes: Int): List<Int>? {
-        val result = transport.sendRaw(pid, REQUEST_TIMEOUT_MS, dropOnFailure = false)
+        val timeout = if (everAnswered) REQUEST_TIMEOUT_WARM_MS else REQUEST_TIMEOUT_MS
+        val result = transport.sendRaw(pid, timeout, dropOnFailure = false)
         if (result !is Elm327Transport.CommandResult.Success) {
             (result as? Elm327Transport.CommandResult.Error)?.let { _lastError.value = it.message }
             return null

@@ -64,6 +64,18 @@ class Elm327Transport(
     /** Called once every retry is spent, so the service can shut the app down. */
     @Volatile var onGaveUp: (() -> Unit)? = null
 
+    /**
+     * "auto", "spp" or "ble" — see [com.volvo960.obdctl.prefs.AppPrefs.transportPreference].
+     * Set before [connect]; changing it takes effect on the next attempt.
+     */
+    @Volatile var transportPreference: String = "auto"
+
+    /**
+     * ELM327 protocol number sent as `ATSP` during init. Default 3 (ISO 9141-2)
+     * — the 960's wiring — but the self-test can find another one and set it.
+     */
+    @Volatile var protocol: String = "3"
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutex = Mutex()
 
@@ -234,6 +246,10 @@ class Elm327Transport(
      * both get tried, classic first because it is cheaper when it works.
      */
     private fun candidateLinks(device: BluetoothDevice): List<ObdLink> {
+        when (transportPreference) {
+            "spp" -> return listOf(SppLink(device, logger))
+            "ble" -> return listOf(BleLink(context, device, logger))
+        }
         val type = try { device.type } catch (e: SecurityException) { BluetoothDevice.DEVICE_TYPE_UNKNOWN }
         return when (type) {
             BluetoothDevice.DEVICE_TYPE_LE -> listOf(BleLink(context, device, logger))
@@ -253,7 +269,7 @@ class Elm327Transport(
             "ATE0" to 3_000L,
             "ATL0" to 3_000L,
             "ATH0" to 3_000L,
-            "ATSP3" to 3_000L, // ISO 9141-2, matches the Volvo 960's OBD wiring
+            "ATSP$protocol" to 3_000L, // 3 = ISO 9141-2, the 960's OBD wiring
         )
         for ((cmd, timeout) in initSequence) {
             mutex.withLock { rawExchange(cmd, timeout) }

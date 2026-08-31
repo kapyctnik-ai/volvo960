@@ -11,6 +11,25 @@ class AppPrefs(context: Context) : VehicleDataPoller.TripStore {
         get() = prefs.getString(KEY_DEVICE_ADDRESS, null)
         set(value) = prefs.edit().putString(KEY_DEVICE_ADDRESS, value).apply()
 
+    /**
+     * Which radio to use. A dual-mode dongle advertises both and only trying
+     * one of them is a guess; "auto" tries Classic first because it is cheaper
+     * on battery, but a dongle whose serial bridge is really on LE needs to be
+     * told.
+     */
+    var transportPreference: String
+        get() = prefs.getString(KEY_TRANSPORT, TRANSPORT_AUTO) ?: TRANSPORT_AUTO
+        set(value) = prefs.edit().putString(KEY_TRANSPORT, value).apply()
+
+    /**
+     * ELM327 protocol number for `ATSP`. "3" is ISO 9141-2, which is what a
+     * 1996 960 is wired for; "4"/"5" are KWP2000 and "0" lets the adapter hunt.
+     * The self-test rewrites this when it finds a protocol the ECU answers on.
+     */
+    var obdProtocol: String
+        get() = prefs.getString(KEY_PROTOCOL, "3") ?: "3"
+        set(value) = prefs.edit().putString(KEY_PROTOCOL, value).apply()
+
     override var tripKm: Double
         get() = double(KEY_TRIP_KM)
         set(value) = putDouble(KEY_TRIP_KM, value)
@@ -41,7 +60,13 @@ class AppPrefs(context: Context) : VehicleDataPoller.TripStore {
     }
 
     companion object {
+        const val TRANSPORT_AUTO = "auto"
+        const val TRANSPORT_SPP = "spp"
+        const val TRANSPORT_BLE = "ble"
+
         private const val KEY_DEVICE_ADDRESS = "last_device_address"
+        private const val KEY_TRANSPORT = "transport_preference"
+        private const val KEY_PROTOCOL = "obd_protocol"
         private const val KEY_TRIP_KM = "trip_km"
         private const val KEY_TOTAL_KM = "total_km"
         private const val KEY_TRIP_FUEL = "trip_fuel_l"

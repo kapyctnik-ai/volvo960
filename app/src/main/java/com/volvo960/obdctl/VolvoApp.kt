@@ -36,6 +36,8 @@ class VolvoApp : Application() {
         transport = Elm327Transport(this, logger)
         prefs = AppPrefs(this)
         notificationHelper = NotificationHelper(this)
+        transport.transportPreference = prefs.transportPreference
+        transport.protocol = prefs.obdProtocol
         vehicleData = VehicleDataPoller(transport, appScope, prefs, logger)
         vehicleData.start()
     }

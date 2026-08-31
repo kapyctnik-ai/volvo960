@@ -33,6 +33,17 @@ class DevicePicker(private val context: Context) {
 
     companion object {
         private const val SCAN_DURATION_MS = 15_000L
+
+        /**
+         * How ELM327 dongles name themselves. Matching devices are marked and
+         * sorted to the top — picking a set of headphones or a head unit by
+         * mistake gives a connection that works and a car that never answers,
+         * which is a genuinely confusing failure.
+         */
+        private val OBD_NAME_HINTS = listOf(
+            "obd", "elm", "vgate", "vlink", "v-link", "icar", "konnwei",
+            "viecar", "carista", "obdlink", "kw90", "ios-vlink", "scan",
+        )
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -61,6 +72,7 @@ class DevicePicker(private val context: Context) {
         } catch (e: SecurityException) {
             emptyList()
         }
+        sortEntries()
 
         val adapterList = ArrayAdapter(context, android.R.layout.simple_list_item_1, rows())
         listAdapter = adapterList
@@ -99,7 +111,7 @@ class DevicePicker(private val context: Context) {
             )
         }
         return entries.map { device ->
-            val name = try { device.name } catch (e: SecurityException) { null } ?: "?"
+            val name = deviceName(device)
             val kind = when (device.type) {
                 BluetoothDevice.DEVICE_TYPE_LE -> "LE"
                 BluetoothDevice.DEVICE_TYPE_CLASSIC -> "SPP"
@@ -107,8 +119,26 @@ class DevicePicker(private val context: Context) {
                 else -> "?"
             }
             val signal = rssi[device.address]?.let { " · $it dBm" }.orEmpty()
-            "$name · $kind$signal\n${device.address}"
+            val mark = if (looksLikeObd(name)) "★ " else ""
+            "$mark$name · $kind$signal\n${device.address}"
         }
+    }
+
+    private fun deviceName(device: BluetoothDevice): String =
+        (try { device.name } catch (e: SecurityException) { null }) ?: "?"
+
+    private fun looksLikeObd(name: String): Boolean {
+        val lower = name.lowercase()
+        return OBD_NAME_HINTS.any { lower.contains(it) }
+    }
+
+    /** Likely dongles first; everything else keeps the order it arrived in. */
+    private fun sortEntries() {
+        val marked = entries.filter { looksLikeObd(deviceName(it)) }
+        val rest = entries.filter { !looksLikeObd(deviceName(it)) }
+        entries.clear()
+        entries += marked
+        entries += rest
     }
 
     private fun refresh() {
@@ -143,6 +173,7 @@ class DevicePicker(private val context: Context) {
                     return
                 }
                 entries += device
+                sortEntries()
                 refresh()
             }
 
