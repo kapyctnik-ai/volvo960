@@ -52,7 +52,6 @@
     <string name="tile_coolant">Температура ОЖ</string>
     <string name="tile_rpm">Обороты</string>
     <string name="tile_consumption">Расход</string>
-    <string name="tile_flow">Расход</string>
     <string name="tile_average">Средний расход</string>
     <string name="tile_throttle">Дроссель</string>
     <string name="tile_trip">Trip (удержать — сброс)</string>
@@ -62,7 +61,6 @@
     <string name="tile_tank">БАК</string>
     <string name="unit_rpm">об/мин</string>
     <string name="unit_l100">л/100км</string>
-    <string name="unit_lph">л/ч</string>
     <string name="unit_km">км</string>
 
     <!-- Where the consumption figure comes from -->

@@ -50,7 +50,6 @@ class DashActivity : AppCompatActivity() {
     private lateinit var tileCoolant: TileView
     private lateinit var tileRpm: TileView
     private lateinit var tileConsumption: TileView
-    private lateinit var tileFlow: TileView
     private lateinit var tileAverage: TileView
     private lateinit var tileThrottle: TileView
     private lateinit var tileTrip: TileView
@@ -127,15 +126,17 @@ class DashActivity : AppCompatActivity() {
             grid.addView(view, params)
             return view
         }
+        // Order matters: the grid fills two to a row, and the instant
+        // consumption is meant to sit directly above the throttle it is
+        // computed from.
         tileCoolant = tile(R.string.tile_coolant, "°C")
         tileRpm = tile(R.string.tile_rpm, getString(R.string.unit_rpm))
-        tileConsumption = tile(R.string.tile_consumption, getString(R.string.unit_l100))
-        tileFlow = tile(R.string.tile_flow, getString(R.string.unit_lph))
         tileAverage = tile(R.string.tile_average, getString(R.string.unit_l100))
+        tileConsumption = tile(R.string.tile_consumption, getString(R.string.unit_l100))
+        tileLoad = tile(R.string.tile_load, "%")
         tileThrottle = tile(R.string.tile_throttle, "%")
         tileTrip = tile(R.string.tile_trip, getString(R.string.unit_km))
         tileTotal = tile(R.string.tile_total, getString(R.string.unit_km))
-        tileLoad = tile(R.string.tile_load, "%")
         tileIntake = tile(R.string.tile_intake, "°C")
 
         tileTrip.setOnLongClickListener {
@@ -365,8 +366,6 @@ class DashActivity : AppCompatActivity() {
         }
         tileConsumption.value = state.consumptionL100?.let { format1(it) }
         tileConsumption.unit = listOfNotNull(getString(R.string.unit_l100), source).joinToString(" · ")
-        tileFlow.value = state.fuelRateLph?.let { format1(it) }
-        tileFlow.unit = listOfNotNull(getString(R.string.unit_lph), source).joinToString(" · ")
         tileAverage.value = state.averageL100?.let { format1(it) }
         tileThrottle.value = state.throttlePercent?.toString()
         tileTrip.value = format1(state.tripKm)

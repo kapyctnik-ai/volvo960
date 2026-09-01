@@ -132,8 +132,12 @@ class VehicleDataPoller(
         const val PETROL_G_PER_L = 745.0
         const val AIR_GAS_CONSTANT = 0.287
 
-        /** How far above the calibrated closed position still counts as shut, %. */
-        const val THROTTLE_CLOSED_MARGIN = 3
+        /**
+         * How far above the calibrated closed position still counts as shut, %.
+         * The sensor sits at 7 % released on this car, so the cut-off holds up
+         * to 9 % and the smallest real press cancels it.
+         */
+        const val THROTTLE_CLOSED_MARGIN = 2
         /** Above this the ECU cuts fuel on a closed throttle... */
         const val RPM_FUEL_CUT = 1_300
         /** ...and below this it puts it back, so the engine keeps running. */
