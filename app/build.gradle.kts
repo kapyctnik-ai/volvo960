@@ -11,8 +11,8 @@ android {
         applicationId = "com.volvo960.obdctl"
         minSdk = 26
         targetSdk = 34
-        versionCode = 30
-        versionName = "0.30.0"
+        versionCode = 31
+        versionName = "0.31.0"
     }
 
     signingConfigs {

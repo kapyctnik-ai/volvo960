@@ -83,13 +83,27 @@ class GearEstimator(private val store: Store) {
 
         val match = clusters.minByOrNull { abs(it.ratio - ratio) / it.ratio }
         if (match != null && abs(match.ratio - ratio) / match.ratio <= MATCH_TOLERANCE) {
+            val wasBelieved = match.samples >= MIN_SAMPLES
             match.ratio += (ratio - match.ratio) * LEARN_RATE
             match.samples++
             currentGear = gearOf(match)
+            // Crossing into "believed" is worth writing down at once; the rest
+            // of the time a periodic save keeps the writes down.
+            if (!wasBelieved && match.samples >= MIN_SAMPLES) {
+                sinceSave = 0
+                save()
+                return currentGear
+            }
         } else if (clusters.size < MAX_CLUSTERS) {
             val fresh = Cluster(ratio, 1)
             clusters += fresh
             currentGear = gearOf(fresh)
+            // A gear found for the first time is the whole point of learning,
+            // and the app can be killed at any moment — save it now rather than
+            // nine samples later.
+            sinceSave = 0
+            save()
+            return currentGear
         }
 
         if (++sinceSave >= SAVE_EVERY) {
