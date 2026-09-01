@@ -37,8 +37,19 @@ class GearEstimator(private val store: Store) {
         const val MAX_RATIO = 200.0
         /** Two consecutive samples must agree this closely to count as steady. */
         const val STEADY_TOLERANCE = 0.04
-        /** How far from a cluster's centre still belongs to it. */
-        const val MATCH_TOLERANCE = 0.07
+        /**
+         * How far from a cluster's centre still belongs to it.
+         *
+         * Wide on purpose. On an automatic the torque converter slips while it
+         * is unlocked, so the same gear reads five to eight per cent higher
+         * than it does locked up — two stable values for one gear, which at a
+         * tighter tolerance became two "gears" and a phantom fifth on a
+         * four-speed box. Real gears are nowhere near this close: an AW30-40
+         * steps 2.39 / 1.45 / 1.00 / 0.69, and the tightest manual step on a
+         * 960 is a quarter. Thirteen per cent swallows lock-up and cannot
+         * swallow a gear.
+         */
+        const val MATCH_TOLERANCE = 0.13
         /** A cluster is only believed once it has been seen this often. */
         const val MIN_SAMPLES = 8
         /** More than a gearbox could have; guards against noise breeding clusters. */
@@ -55,6 +66,12 @@ class GearEstimator(private val store: Store) {
 
     init {
         load()
+        // Ratios learnt under the old, tighter tolerance may hold a gear twice
+        // — once locked up and once not. Fix them on the way in.
+        if (clusters.size > 1) {
+            mergeClose()
+            save()
+        }
     }
 
     /**
@@ -95,9 +112,12 @@ class GearEstimator(private val store: Store) {
                 return currentGear
             }
         } else if (clusters.size < MAX_CLUSTERS) {
-            val fresh = Cluster(ratio, 1)
-            clusters += fresh
-            currentGear = gearOf(fresh)
+            clusters += Cluster(ratio, 1)
+            mergeClose()
+            // The new cluster may have been folded into a neighbour by the
+            // merge, so ask which cluster this ratio now belongs to rather than
+            // holding a reference to one that no longer exists.
+            currentGear = clusters.minByOrNull { abs(it.ratio - ratio) }?.let { gearOf(it) }
             // A gear found for the first time is the whole point of learning,
             // and the app can be killed at any moment — save it now rather than
             // nine samples later.
@@ -111,6 +131,34 @@ class GearEstimator(private val store: Store) {
             save()
         }
         return currentGear
+    }
+
+    /**
+     * Folds clusters that have ended up within the tolerance of each other.
+     *
+     * Needed because the tolerance was once tighter: ratios learnt then are
+     * already split into locked and unlocked halves of the same gear, and they
+     * would stay split for ever otherwise. Merging is by sample count, so the
+     * better-attested half decides where the centre lands.
+     */
+    private fun mergeClose() {
+        var merged = true
+        while (merged) {
+            merged = false
+            outer@ for (i in clusters.indices) {
+                for (j in i + 1 until clusters.size) {
+                    val a = clusters[i]
+                    val b = clusters[j]
+                    if (abs(a.ratio - b.ratio) / maxOf(a.ratio, b.ratio) > MATCH_TOLERANCE) continue
+                    val total = a.samples + b.samples
+                    a.ratio = (a.ratio * a.samples + b.ratio * b.samples) / total
+                    a.samples = total
+                    clusters.removeAt(j)
+                    merged = true
+                    break@outer
+                }
+            }
+        }
     }
 
     /**
