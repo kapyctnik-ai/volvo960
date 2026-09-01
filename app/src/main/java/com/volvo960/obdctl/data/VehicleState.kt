@@ -12,8 +12,11 @@ data class VehicleState(
     val intakeTempC: Int? = null,
     val engineLoadPercent: Int? = null,
     val throttlePercent: Int? = null,
-    /** Worked out from the rpm-to-speed ratio; null until the gears are learnt. */
-    val gear: Int? = null,
+    /**
+     * Worked out from the rpm-to-speed ratio; null until the gears are learnt.
+     * "4L" means fourth with the torque converter locked up.
+     */
+    val gear: String? = null,
     /** Litres per hour burnt right now. */
     val fuelRateLph: Double? = null,
     /** Litres per 100 km right now; null while stopped, where L/h is the honest figure. */

@@ -37,19 +37,18 @@ class GearEstimator(private val store: Store) {
         const val MAX_RATIO = 200.0
         /** Two consecutive samples must agree this closely to count as steady. */
         const val STEADY_TOLERANCE = 0.04
+        /** How far from a cluster's centre still belongs to it. */
+        const val MATCH_TOLERANCE = 0.07
+
         /**
-         * How far from a cluster's centre still belongs to it.
-         *
-         * Wide on purpose. On an automatic the torque converter slips while it
-         * is unlocked, so the same gear reads five to eight per cent higher
-         * than it does locked up — two stable values for one gear, which at a
-         * tighter tolerance became two "gears" and a phantom fifth on a
-         * four-speed box. Real gears are nowhere near this close: an AW30-40
-         * steps 2.39 / 1.45 / 1.00 / 0.69, and the tightest manual step on a
-         * 960 is a quarter. Thirteen per cent swallows lock-up and cannot
-         * swallow a gear.
+         * Two clusters this close are one gear seen twice: with the torque
+         * converter locked and with it slipping. Real gears are nowhere near
+         * this close — an AW30-40 steps 2.39 / 1.45 / 1.00 / 0.69, and the
+         * tightest step on a 960 manual is a quarter — so anything inside this
+         * band is lock-up, and it gets shown as such rather than counted as
+         * another gear.
          */
-        const val MATCH_TOLERANCE = 0.13
+        const val LOCKUP_TOLERANCE = 0.14
         /** A cluster is only believed once it has been seen this often. */
         const val MIN_SAMPLES = 8
         /** More than a gearbox could have; guards against noise breeding clusters. */
@@ -61,26 +60,21 @@ class GearEstimator(private val store: Store) {
 
     private val clusters = mutableListOf<Cluster>()
     private var lastRatio: Double? = null
-    private var currentGear: Int? = null
+    private var currentGear: String? = null
     private var sinceSave = 0
 
     init {
         load()
-        // Ratios learnt under the old, tighter tolerance may hold a gear twice
-        // — once locked up and once not. Fix them on the way in.
-        if (clusters.size > 1) {
-            mergeClose()
-            save()
-        }
     }
 
     /**
      * @param moving false while the injectors are cut or the car is stopped —
      *   the ratio is still valid on the overrun, so only a stopped car and a
      *   disconnected reading are excluded.
-     * @return the gear, or null while it cannot be told.
+     * @return the gear as it should be shown ("3", or "4L" when locked up), or
+     *   null while it cannot be told.
      */
-    fun update(rpm: Int?, speedKmh: Int?): Int? {
+    fun update(rpm: Int?, speedKmh: Int?): String? {
         if (rpm == null || speedKmh == null || speedKmh < MIN_SPEED_KMH || rpm < MIN_RPM) {
             lastRatio = null
             currentGear = null
@@ -112,12 +106,9 @@ class GearEstimator(private val store: Store) {
                 return currentGear
             }
         } else if (clusters.size < MAX_CLUSTERS) {
-            clusters += Cluster(ratio, 1)
-            mergeClose()
-            // The new cluster may have been folded into a neighbour by the
-            // merge, so ask which cluster this ratio now belongs to rather than
-            // holding a reference to one that no longer exists.
-            currentGear = clusters.minByOrNull { abs(it.ratio - ratio) }?.let { gearOf(it) }
+            val fresh = Cluster(ratio, 1)
+            clusters += fresh
+            currentGear = gearOf(fresh)
             // A gear found for the first time is the whole point of learning,
             // and the app can be killed at any moment — save it now rather than
             // nine samples later.
@@ -134,45 +125,40 @@ class GearEstimator(private val store: Store) {
     }
 
     /**
-     * Folds clusters that have ended up within the tolerance of each other.
+     * Names the gear: "3" on its own, or "4L" when the torque converter is
+     * locked up in it.
      *
-     * Needed because the tolerance was once tighter: ratios learnt then are
-     * already split into locked and unlocked halves of the same gear, and they
-     * would stay split for ever otherwise. Merging is by sample count, so the
-     * better-attested half decides where the centre lands.
+     * Ratios are sorted highest first — first gear turns the engine fastest —
+     * and neighbours within [LOCKUP_TOLERANCE] are folded into one gear, since
+     * that gap is lock-up rather than a ratio change. Inside such a pair the
+     * lower ratio is the locked one: with the converter locked there is no slip,
+     * so the engine turns slower for the same road speed.
+     *
+     * Nothing is shown until two gears have been told apart — with one there is
+     * no telling whether it is first or fifth.
      */
-    private fun mergeClose() {
-        var merged = true
-        while (merged) {
-            merged = false
-            outer@ for (i in clusters.indices) {
-                for (j in i + 1 until clusters.size) {
-                    val a = clusters[i]
-                    val b = clusters[j]
-                    if (abs(a.ratio - b.ratio) / maxOf(a.ratio, b.ratio) > MATCH_TOLERANCE) continue
-                    val total = a.samples + b.samples
-                    a.ratio = (a.ratio * a.samples + b.ratio * b.samples) / total
-                    a.samples = total
-                    clusters.removeAt(j)
-                    merged = true
-                    break@outer
-                }
+    private fun gearOf(cluster: Cluster): String? {
+        if (cluster.samples < MIN_SAMPLES) return null
+        val believable = clusters.filter { it.samples >= MIN_SAMPLES }.sortedByDescending { it.ratio }
+        if (believable.size < 2) return null
+
+        val groups = mutableListOf<MutableList<Cluster>>()
+        for (candidate in believable) {
+            val current = groups.lastOrNull()
+            val previous = current?.last()
+            if (previous != null && abs(previous.ratio - candidate.ratio) / previous.ratio <= LOCKUP_TOLERANCE) {
+                current += candidate
+            } else {
+                groups += mutableListOf(candidate)
             }
         }
-    }
+        if (groups.size < 2) return null
 
-    /**
-     * Gears are numbered by ratio, highest first — that is what first gear is.
-     * Nothing is shown until a second gear has been seen: with one cluster there
-     * is no telling whether it is first or fifth.
-     */
-    private fun gearOf(cluster: Cluster): Int? {
-        if (cluster.samples < MIN_SAMPLES) return null
-        val believable = clusters.filter { it.samples >= MIN_SAMPLES }
-        if (believable.size < 2) return null
-        val order = believable.sortedByDescending { it.ratio }
-        val index = order.indexOfFirst { it === cluster }
-        return if (index == -1) null else index + 1
+        val index = groups.indexOfFirst { group -> group.any { it === cluster } }
+        if (index == -1) return null
+        val group = groups[index]
+        val number = index + 1
+        return if (group.size > 1 && group.last() === cluster) "${number}L" else number.toString()
     }
 
     /** Forgets the learnt ratios — for a tyre change, or a bad first drive. */

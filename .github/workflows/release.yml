@@ -3,10 +3,19 @@ name: Build debug APK
 on:
   push:
     branches: [ "**" ]
+    # Documentation does not go into the APK.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   workflow_dispatch:
 
 permissions:
   contents: write
+
+# A build that has already been superseded is a build nobody will install.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -19,6 +28,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          # Without this every run re-downloads the whole dependency tree for a
+          # six-megabyte APK.
+          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3

@@ -348,7 +348,7 @@ class DashActivity : AppCompatActivity() {
         binding.dialSpeedo.setValue(state.speedKmh?.toFloat())
         binding.dialSpeedo.caption = state.speedKmh?.toString()
         binding.dialTacho.setValue(state.rpm?.toFloat())
-        binding.dialTacho.caption = state.gear?.toString()
+        binding.dialTacho.caption = state.gear
 
         tileCoolant.value = state.coolantTempC?.toString()
         // 105 °C is where this engine stops being merely warm.
