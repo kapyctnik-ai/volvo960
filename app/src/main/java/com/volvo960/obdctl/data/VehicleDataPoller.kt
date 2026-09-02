@@ -115,6 +115,12 @@ class VehicleDataPoller(
          * this long without a single reading, stop the app.
          */
         const val GIVE_UP_WITHOUT_DATA_MS = 5 * 60_000L
+        /**
+         * Before giving up, put the adapter through a reset: it can sit there
+         * answering while holding a session the car has long since dropped, and
+         * only ATZ plus a fresh bus initialisation clears that.
+         */
+        const val RESET_LINK_WITHOUT_DATA_MS = 60_000L
         /** How many times to check whether the adapter understands the reply-count digit. */
         const val MAX_HINT_PROBES = 3
         /** A PID that never answers is dropped after this many silent tries. */
@@ -160,8 +166,17 @@ class VehicleDataPoller(
     private var lastSampleAtMs = 0L
     /** When a PID last parsed successfully — the only proof the car is awake. */
     private var lastDataAtMs = 0L
+
+    /**
+     * The same thing, but never cleared by a reconnect. The give-up timer hangs
+     * off this: resetting the adapter every minute would otherwise restart the
+     * countdown each time and the app would poll a parked car for ever.
+     */
+    private var lastRealDataAtMs = 0L
     private var consecutiveFailures = 0
     private var cycle = 0
+    private var seenGeneration = -1
+    private var lastLinkResetAtMs = 0L
 
     /** Filled by [probeCapabilities]; null until the car has been asked. */
     private var supported: Set<Int>? = null
@@ -220,6 +235,22 @@ class VehicleDataPoller(
 
     private suspend fun loop() {
         while (true) {
+            // A reconnect starts from nothing: the adapter has been reset, the
+            // bus needs its slow initialisation again, and everything learnt
+            // about what answers belongs to the link that just died. Watching
+            // for a Disconnected state in between is not enough — a drop and a
+            // reconnect both fit inside one slow request.
+            if (transport.connectionGeneration != seenGeneration) {
+                seenGeneration = transport.connectionGeneration
+                resetForNewConnection()
+            }
+
+            if (transport.connectionState.value is ConnectionState.Connected && lastRealDataAtMs == 0L) {
+                // Start the give-up clock from the moment there is a link to
+                // read over, not from app start.
+                lastRealDataAtMs = SystemClock.elapsedRealtime()
+            }
+
             if (transport.connectionState.value !is ConnectionState.Connected) {
                 _state.update {
                     VehicleState(
@@ -308,6 +339,27 @@ class VehicleDataPoller(
     }
 
     /**
+     * Forgets everything that was true of the previous link: which PIDs went
+     * silent, whether the adapter understands the reply-count digit, which
+     * consumption tier answered, and — importantly — that anything had ever
+     * answered at all, which is what keeps the first request after a
+     * reconnection on the long timeout the 5-baud initialisation needs.
+     */
+    private fun resetForNewConnection() {
+        silentTries.clear()
+        everAnswered = false
+        responseHint = true
+        hintProbes = 0
+        lockedSource = null
+        supported = null
+        consecutiveFailures = 0
+        lastSampleAtMs = 0L
+        lastDataAtMs = 0L
+        cycle = 0
+        lastLinkResetAtMs = 0L
+    }
+
+    /**
      * Blanks the live readings once they stop arriving, and stops the app when
      * they have not arrived for long enough that nobody is driving anything.
      *
@@ -315,16 +367,25 @@ class VehicleDataPoller(
      * the notification said "связь есть · ОЖ 106" for twenty-five minutes after
      * the car had been walked away from. Showing nothing is the honest answer.
      */
-    private fun enforceStaleness() {
+    private suspend fun enforceStaleness() {
         if (lastDataAtMs == 0L) {
             // Never had a reading on this connection; start the clock at the
             // first failure so the give-up timer has something to measure from.
             lastDataAtMs = SystemClock.elapsedRealtime()
             return
         }
-        val silentFor = SystemClock.elapsedRealtime() - lastDataAtMs
-        if (silentFor >= GIVE_UP_WITHOUT_DATA_MS) {
-            transport.abandon("машина не отвечает ${silentFor / 60_000} мин")
+        val now = SystemClock.elapsedRealtime()
+        val silentFor = now - lastDataAtMs
+        val reallySilentFor = now - lastRealDataAtMs
+        if (lastRealDataAtMs != 0L && reallySilentFor >= GIVE_UP_WITHOUT_DATA_MS) {
+            transport.abandon("машина не отвечает ${reallySilentFor / 60_000} мин")
+            return
+        }
+        if (silentFor >= RESET_LINK_WITHOUT_DATA_MS &&
+            now - lastLinkResetAtMs >= RESET_LINK_WITHOUT_DATA_MS
+        ) {
+            lastLinkResetAtMs = now
+            transport.resetLink("нет данных ${silentFor / 1000} с")
             return
         }
         if (silentFor < STALE_MS) return
@@ -566,6 +627,7 @@ class VehicleDataPoller(
         silentTries.remove(pid)
         everAnswered = true
         lastDataAtMs = SystemClock.elapsedRealtime()
+        lastRealDataAtMs = lastDataAtMs
         val first = bytes.getOrNull(0) ?: return null
         return first to (bytes.getOrNull(1) ?: 0)
     }

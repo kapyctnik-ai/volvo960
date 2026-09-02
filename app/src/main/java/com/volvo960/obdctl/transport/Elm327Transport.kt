@@ -103,6 +103,14 @@ class Elm327Transport(
     @Volatile private var lastReplyAtMs = 0L
     @Volatile private var lowPowerRequested = false
 
+    /**
+     * Bumped every time a link is established. Anything caching per-connection
+     * state watches this: a drop and a reconnect can both happen inside one
+     * slow request, so watching [connectionState] for a gap is not reliable.
+     */
+    @Volatile var connectionGeneration = 0
+        private set
+
     val isConnected: Boolean
         get() = connectionState.value is ConnectionState.Connected
 
@@ -294,6 +302,7 @@ class Elm327Transport(
                 candidate.setLowPower(lowPowerRequested)
                 lastReplyAtMs = SystemClock.elapsedRealtime()
                 initAdapter()
+                connectionGeneration++
                 val name = try { device.name } catch (e: SecurityException) { null } ?: device.address
                 _connectionState.value = ConnectionState.Connected("$name · ${candidate.label}", device.address)
                 return null
