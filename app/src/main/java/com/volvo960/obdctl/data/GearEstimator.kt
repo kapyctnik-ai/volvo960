@@ -78,6 +78,13 @@ class GearEstimator(private val store: Store) {
          */
         const val SCALE_MIN = 24.0
         const val SCALE_MAX = 41.0
+
+        /**
+         * What this car should read in direct drive: a 4.00 axle on 205/55 R16.
+         * The tyre is 16 x 25.4 + 2 x 205 x 0.55 = 631.9 mm across, so 1.985 m
+         * around, and 4000 / (60 x 1.985) = 33.6.
+         */
+        const val EXPECTED_SCALE = 33.6
         const val EXPECTED_SCALE_MIN = 30.0
         const val EXPECTED_SCALE_MAX = 35.5
 
@@ -277,7 +284,16 @@ class GearEstimator(private val store: Store) {
         val header = if (fit == null) {
             "коробка не определена"
         } else {
-            "%s, масштаб %.1f об/мин на км/ч".format(fit.box.name, fit.scale)
+            // The gap between what the axle and tyres say and what the car
+            // reports is the speed reading itself: the sender over-reads, and
+            // that same error is in trip distance and in litres per 100 km.
+            val bias = (EXPECTED_SCALE / fit.scale - 1.0) * 100.0
+            val note = when {
+                bias > 2.0 -> "скорость по OBD завышена примерно на %.0f %%".format(bias)
+                bias < -2.0 -> "скорость по OBD занижена примерно на %.0f %%".format(-bias)
+                else -> "скорость по OBD сходится с расчётом"
+            }
+            "%s, масштаб %.1f (расчётный %.1f)\n%s".format(fit.box.name, fit.scale, EXPECTED_SCALE, note)
         }
         val rows = clusters.sortedByDescending { it.ratio }.map { cluster ->
             val name = nameFor(cluster) ?: "—"
