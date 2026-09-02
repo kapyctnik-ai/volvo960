@@ -64,14 +64,22 @@ class GearEstimator(private val store: Store) {
 
         /**
          * rpm per km/h in direct drive: `final drive x 1000 / (60 x circumference)`.
-         * A 3.31 axle on 2.2 m of tyre gives 25; a 4.56 on 1.85 m gives 41.
-         * Deliberately wider than the catalogue: the point of the range is to
-         * throw out impossible readings, not to insist on a specification the
-         * car may not match — this one reports 31 where a 4.10 axle on standard
-         * tyres would say 34.
+         *
+         * The hard bounds are deliberately loose — a 3.31 axle on 2.2 m of tyre
+         * gives 25, a 4.56 on 1.85 m gives 41 — because their job is to throw
+         * out impossible readings, not to insist on a specification.
+         *
+         * The expected band is this car: a 4.00 axle on 1.9-2.2 m of tyre. It
+         * only breaks ties, because the car does not quite agree with it: a
+         * steady cruise reads about 31 where the arithmetic says 33.5. The
+         * likely reason is the speed itself — OBD speed comes off the
+         * speedometer sender, which over-reads by a few per cent on a car this
+         * age, and a few per cent of speed is a few per cent of ratio.
          */
         const val SCALE_MIN = 24.0
         const val SCALE_MAX = 41.0
+        const val EXPECTED_SCALE_MIN = 30.0
+        const val EXPECTED_SCALE_MAX = 35.5
 
         /**
          * How far a cluster may sit from a gearbox ratio and still be it.
@@ -158,7 +166,20 @@ class GearEstimator(private val store: Store) {
         val box: Gearbox,
         val error: Double,
         val explained: Int,
-    )
+        /** Whether the scale matches this car's 4.00 axle on plausible tyres. */
+        val expected: Boolean,
+    ) {
+        /**
+         * More gears explained wins first — the pattern across the set is what
+         * identifies the gearbox. A scale this car could actually have breaks
+         * the remaining ties, and only then the closeness of the fit.
+         */
+        fun betterThan(other: Fit): Boolean = when {
+            explained != other.explained -> explained > other.explained
+            expected != other.expected -> expected
+            else -> error < other.error - 1e-9
+        }
+    }
 
     private fun bestFit(believed: List<Cluster>): Fit? {
         if (believed.isEmpty()) return null
@@ -188,13 +209,9 @@ class GearEstimator(private val store: Store) {
                 // and it is the pattern of the whole set that identifies the
                 // gearbox.
                 val explained = believed.mapNotNull { gearIndex(it.ratio, scale, box) }.distinct().size
-                val fit = Fit(scale, box, total / believed.size, explained)
-                if (best == null ||
-                    fit.explained > best.explained ||
-                    (fit.explained == best.explained && fit.error < best.error - 1e-9)
-                ) {
-                    best = fit
-                }
+                val expected = scale in EXPECTED_SCALE_MIN..EXPECTED_SCALE_MAX
+                val fit = Fit(scale, box, total / believed.size, explained, expected)
+                if (best == null || fit.betterThan(best)) best = fit
             }
         }
         return best
