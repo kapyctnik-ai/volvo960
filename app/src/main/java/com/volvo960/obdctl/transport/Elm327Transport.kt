@@ -189,6 +189,20 @@ class Elm327Transport(
     }
 
     /**
+     * Tears the link down and reconnects, which puts the adapter through ATZ
+     * and the bus through its initialisation again.
+     *
+     * The way back when the adapter is answering but the car is not: an ELM327
+     * can hold a session the car dropped long ago, and only a reset clears it.
+     * Until now that took restarting the app by hand.
+     */
+    suspend fun resetLink(reason: String) {
+        if (connectionState.value !is ConnectionState.Connected) return
+        logger.logError("перезапуск адаптера: $reason")
+        onTransportFailure(reason)
+    }
+
+    /**
      * Stops for good: no more attempts, and the service takes the app down.
      * Public because the adapter answering "NO DATA" forever — a powered
      * dongle in a parked car — is a link the transport itself cannot tell from
