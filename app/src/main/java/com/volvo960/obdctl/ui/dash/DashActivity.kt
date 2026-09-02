@@ -199,6 +199,7 @@ class DashActivity : AppCompatActivity() {
             getString(R.string.action_choose_device),
             getString(R.string.action_transport),
             getString(if (connected) R.string.action_disconnect else R.string.action_connect_now),
+            getString(R.string.action_show_gears),
             getString(R.string.action_open_console),
         )
         AlertDialog.Builder(this)
@@ -209,6 +210,7 @@ class DashActivity : AppCompatActivity() {
                     1 -> pickDevice()
                     2 -> chooseTransport()
                     3 -> if (connected) ObdService.stop(this) else autoConnect(force = true)
+                    4 -> showLearntGears()
                     else -> startActivity(Intent(this, ConsoleActivity::class.java))
                 }
             }
@@ -302,6 +304,21 @@ class DashActivity : AppCompatActivity() {
             app.prefs.lastDeviceAddress = device.address
             ObdService.start(this, device.address)
         }
+    }
+
+    /**
+     * Shows the ratios the estimator has collected and what it calls each one.
+     * A wrong gear on the tachometer says nothing about why; this says which
+     * ratio was measured and which gearbox ratio it was matched to.
+     */
+    private fun showLearntGears() {
+        val lines = app.vehicleData.describeGears()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.gears_title)
+            .setMessage(if (lines.isEmpty()) getString(R.string.gears_empty) else lines.joinToString("\n"))
+            .setPositiveButton(android.R.string.ok, null)
+            .setNeutralButton(R.string.gears_forget) { _, _ -> app.vehicleData.resetGears() }
+            .show()
     }
 
     private fun askTankLiters() {

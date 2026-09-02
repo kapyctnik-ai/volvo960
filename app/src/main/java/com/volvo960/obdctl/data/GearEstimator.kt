@@ -64,11 +64,14 @@ class GearEstimator(private val store: Store) {
 
         /**
          * rpm per km/h in direct drive: `final drive x 1000 / (60 x circumference)`.
-         * 3.31-4.10 on the axle, 1.9-2.1 m around the tyre. Nothing a 960 wears
-         * falls outside this.
+         * A 3.31 axle on 2.2 m of tyre gives 25; a 4.56 on 1.85 m gives 41.
+         * Deliberately wider than the catalogue: the point of the range is to
+         * throw out impossible readings, not to insist on a specification the
+         * car may not match — this one reports 31 where a 4.10 axle on standard
+         * tyres would say 34.
          */
-        const val SCALE_MIN = 26.0
-        const val SCALE_MAX = 36.0
+        const val SCALE_MIN = 24.0
+        const val SCALE_MAX = 41.0
 
         /**
          * How far a cluster may sit from a gearbox ratio and still be it.
@@ -150,7 +153,12 @@ class GearEstimator(private val store: Store) {
     }
 
     /** The scale factor and gearbox that best explain the ratios seen so far. */
-    private class Fit(val scale: Double, val box: Gearbox, val error: Double)
+    private class Fit(
+        val scale: Double,
+        val box: Gearbox,
+        val error: Double,
+        val explained: Int,
+    )
 
     private fun bestFit(believed: List<Cluster>): Fit? {
         if (believed.isEmpty()) return null
@@ -174,10 +182,19 @@ class GearEstimator(private val store: Store) {
                     total += error * error
                 }
                 if (!fits) continue
-                val fit = Fit(scale, box, total / believed.size)
-                // Ties go to the first gearbox listed, which is the one this
-                // car has.
-                if (best == null || fit.error < best.error - 1e-9) best = fit
+                // How many distinct gears this explains. A fit that accounts
+                // for four gears is worth more than a tighter one that only
+                // accounts for two: with one cluster almost any scale fits,
+                // and it is the pattern of the whole set that identifies the
+                // gearbox.
+                val explained = believed.mapNotNull { gearIndex(it.ratio, scale, box) }.distinct().size
+                val fit = Fit(scale, box, total / believed.size, explained)
+                if (best == null ||
+                    fit.explained > best.explained ||
+                    (fit.explained == best.explained && fit.error < best.error - 1e-9)
+                ) {
+                    best = fit
+                }
             }
         }
         return best
@@ -229,6 +246,27 @@ class GearEstimator(private val store: Store) {
         val order = believed.sortedByDescending { it.ratio }
         val index = order.indexOfFirst { it === cluster }
         return if (index == -1) null else "${index + 1}?"
+    }
+
+    /**
+     * What has been learnt, as lines of "ratio -> gear", for the diagnostic
+     * dialog. Being able to see this is the difference between "the gear is
+     * wrong" and knowing which ratio was misread.
+     */
+    fun describe(): List<String> {
+        if (clusters.isEmpty()) return emptyList()
+        val believed = clusters.filter { it.samples >= MIN_SAMPLES }
+        val fit = bestFit(believed)
+        val header = if (fit == null) {
+            "коробка не определена"
+        } else {
+            "%s, масштаб %.1f об/мин на км/ч".format(fit.box.name, fit.scale)
+        }
+        val rows = clusters.sortedByDescending { it.ratio }.map { cluster ->
+            val name = nameFor(cluster) ?: "—"
+            "%.1f  ->  %s   (%d замеров)".format(cluster.ratio, name, cluster.samples)
+        }
+        return listOf(header) + rows
     }
 
     /** Forgets the learnt ratios — for a tyre change, or a bad first drive. */

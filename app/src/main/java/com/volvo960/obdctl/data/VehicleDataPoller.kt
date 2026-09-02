@@ -66,6 +66,9 @@ class VehicleDataPoller(
     /** Forgets the learnt gear ratios — after a tyre or gearbox change. */
     fun resetGears() = gears.reset()
 
+    /** What the gear estimator has learnt, for the diagnostic dialog. */
+    fun describeGears(): List<String> = gears.describe()
+
     private companion object {
         const val PID_SUPPORTED_01 = "0100"
         const val PID_SUPPORTED_21 = "0120"
