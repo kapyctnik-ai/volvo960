@@ -96,12 +96,14 @@ class DashActivity : AppCompatActivity() {
         binding.buttonSetTank.setOnClickListener { askTankLiters() }
 
         observe()
-        autoConnect()
     }
 
     override fun onStart() {
         super.onStart()
         app.setUiVisible(true)
+        // Opening the app is the whole instruction: connect to the dongle it
+        // used last. Nothing here should need a tap.
+        autoConnect()
     }
 
     override fun onStop() {
@@ -178,12 +180,16 @@ class DashActivity : AppCompatActivity() {
         if (missing.isNotEmpty()) permissionLauncher.launch(missing.toTypedArray())
     }
 
-    /** Reconnects to the last dongle on launch; that is what the app is for. */
+    /**
+     * Reconnects to the last dongle. Any state that is not already connected or
+     * connecting counts as a reason to try — including having given up, which
+     * used to leave the app sitting there doing nothing until it was told.
+     */
     private fun autoConnect(force: Boolean = false) {
         val address = app.prefs.lastDeviceAddress ?: return
-        if (force || app.transport.connectionState.value is ConnectionState.Disconnected) {
-            ObdService.start(this, address)
-        }
+        val state = app.transport.connectionState.value
+        val busy = state is ConnectionState.Connected || state is ConnectionState.Connecting
+        if (force || !busy) ObdService.start(this, address)
     }
 
     private fun onStatusTapped() {

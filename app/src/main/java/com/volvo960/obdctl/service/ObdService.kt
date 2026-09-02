@@ -110,7 +110,16 @@ class ObdService : LifecycleService() {
 
     private fun startConnection(address: String) {
         goForeground(getString(R.string.notif_title_connecting), address)
-        if (started) return
+        if (started) {
+            // Already running. If the link is down — including sitting out a
+            // three-minute wait between attempts — this is a request to try
+            // again now, which is what opening the app means.
+            val state = app.transport.connectionState.value
+            if (state !is ConnectionState.Connected && state !is ConnectionState.Connecting) {
+                resolveDevice(address)?.let { app.transport.connect(it) }
+            }
+            return
+        }
         started = true
 
         app.transport.onGaveUp = {
@@ -119,12 +128,7 @@ class ObdService : LifecycleService() {
             shutdown(kill = true, reason = reason)
         }
 
-        val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
-        val device = try {
-            adapter?.getRemoteDevice(address)
-        } catch (e: IllegalArgumentException) {
-            null
-        }
+        val device = resolveDevice(address)
         if (device == null) {
             shutdown(kill = false, reason = getString(R.string.status_no_device))
             return
@@ -168,6 +172,12 @@ class ObdService : LifecycleService() {
                 goForeground(title, text)
             }
         }
+    }
+
+    private fun resolveDevice(address: String) = try {
+        (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter?.getRemoteDevice(address)
+    } catch (e: IllegalArgumentException) {
+        null
     }
 
     private fun goForeground(title: String, text: String) {
