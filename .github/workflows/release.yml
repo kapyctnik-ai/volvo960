@@ -55,3 +55,19 @@ jobs:
           name: Debug build #${{ github.run_number }}
           prerelease: true
           files: app/build/outputs/apk/debug/app-debug.apk
+
+      # Forty-odd prereleases of the same app is not a history, it is litter.
+      # Only the newest is ever installed, so the rest go, tags included.
+      - name: Keep only the newest release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
+            --json tagName,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[1:] | .[].tagName' \
+          | while read -r tag; do
+              [ -n "$tag" ] || continue
+              echo "removing $tag"
+              gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+            done
