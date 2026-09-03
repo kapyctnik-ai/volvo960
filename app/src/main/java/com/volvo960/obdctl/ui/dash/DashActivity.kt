@@ -189,16 +189,22 @@ class DashActivity : AppCompatActivity() {
         val address = app.prefs.lastDeviceAddress ?: return
         val state = app.transport.connectionState.value
         val busy = state is ConnectionState.Connected || state is ConnectionState.Connecting
-        if (force || !busy) ObdService.start(this, address)
+        if (!force && busy) return
+        // Every connection this app makes that is not already running starts
+        // from a clean slate. There is no state worth preserving from a link
+        // that is not working, and preserving it is what left the app sitting
+        // on "gave up" with a live adapter in front of it.
+        ObdService.start(this, address, force = true)
+        if (force) Toast.makeText(this, R.string.reconnecting, Toast.LENGTH_SHORT).show()
     }
 
     private fun onStatusTapped() {
-        val connected = app.transport.connectionState.value is ConnectionState.Connected
         val items = arrayOf(
+            getString(R.string.action_connect_now),
             getString(R.string.action_self_test),
             getString(R.string.action_choose_device),
             getString(R.string.action_transport),
-            getString(if (connected) R.string.action_disconnect else R.string.action_connect_now),
+            getString(R.string.action_disconnect),
             getString(R.string.action_show_gears),
             getString(R.string.action_open_console),
         )
@@ -206,11 +212,12 @@ class DashActivity : AppCompatActivity() {
             .setTitle(R.string.menu_title)
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> runSelfTest()
-                    1 -> pickDevice()
-                    2 -> chooseTransport()
-                    3 -> if (connected) ObdService.stop(this) else autoConnect(force = true)
-                    4 -> showLearntGears()
+                    0 -> autoConnect(force = true)
+                    1 -> runSelfTest()
+                    2 -> pickDevice()
+                    3 -> chooseTransport()
+                    4 -> ObdService.stop(this)
+                    5 -> showLearntGears()
                     else -> startActivity(Intent(this, ConsoleActivity::class.java))
                 }
             }

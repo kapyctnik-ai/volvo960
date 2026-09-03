@@ -35,11 +35,18 @@ class ObdService : LifecycleService() {
         const val ACTION_START = "com.volvo960.obdctl.action.START"
         const val ACTION_STOP = "com.volvo960.obdctl.action.STOP"
         const val EXTRA_ADDRESS = "device_address"
+        const val EXTRA_FORCE = "force"
 
-        fun start(context: Context, address: String) {
+        /**
+         * @param force a user asking for a connection, which overrides
+         *   everything: whatever the transport is doing is abandoned and a new
+         *   attempt starts at once.
+         */
+        fun start(context: Context, address: String, force: Boolean = false) {
             val intent = Intent(context, ObdService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_ADDRESS, address)
+                putExtra(EXTRA_FORCE, force)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -99,7 +106,7 @@ class ObdService : LifecycleService() {
                     stopSelf()
                     return START_NOT_STICKY
                 }
-                startConnection(address)
+                startConnection(address, force = intent?.getBooleanExtra(EXTRA_FORCE, false) == true)
             }
         }
         // Not sticky: a process the system killed should stay dead until the
@@ -108,25 +115,29 @@ class ObdService : LifecycleService() {
         return START_NOT_STICKY
     }
 
-    private fun startConnection(address: String) {
+    private fun startConnection(address: String, force: Boolean = false) {
         goForeground(getString(R.string.notif_title_connecting), address)
+        // Registered on every start, not only the first. Cleared once by a
+        // manual stop, it stayed cleared, and then giving up did nothing at
+        // all: the app sat on screen saying it had given up, with the service
+        // still running and nothing left to run it.
+        armGiveUp()
         if (started) {
-            // Already running. If the link is down — including sitting out a
-            // three-minute wait between attempts — this is a request to try
-            // again now, which is what opening the app means.
             val state = app.transport.connectionState.value
-            if (state !is ConnectionState.Connected && state !is ConnectionState.Connecting) {
-                resolveDevice(address)?.let { app.transport.connect(it) }
+            when {
+                // A forced start ignores the state entirely — including
+                // "connecting", which is exactly the state a stalled handshake
+                // sits in, and the one that used to make the button do nothing.
+                force -> {
+                    app.vehicleData.hardReset()
+                    resolveDevice(address)?.let { app.transport.forceReconnect(it) }
+                }
+                state !is ConnectionState.Connected && state !is ConnectionState.Connecting ->
+                    resolveDevice(address)?.let { app.transport.connect(it) }
             }
             return
         }
         started = true
-
-        app.transport.onGaveUp = {
-            val reason = (app.transport.connectionState.value as? ConnectionState.GaveUp)?.reason
-                ?: getString(R.string.status_disconnected)
-            shutdown(kill = true, reason = reason)
-        }
 
         val device = resolveDevice(address)
         if (device == null) {
@@ -134,7 +145,12 @@ class ObdService : LifecycleService() {
             return
         }
         app.prefs.lastDeviceAddress = address
-        app.transport.connect(device)
+        if (force) {
+            app.vehicleData.hardReset()
+            app.transport.forceReconnect(device)
+        } else {
+            app.transport.connect(device)
+        }
 
         lifecycleScope.launch {
             combine(app.transport.connectionState, app.vehicleData.state) { state, vehicle ->
@@ -171,6 +187,14 @@ class ObdService : LifecycleService() {
                 }
                 goForeground(title, text)
             }
+        }
+    }
+
+    private fun armGiveUp() {
+        app.transport.onGaveUp = {
+            val reason = (app.transport.connectionState.value as? ConnectionState.GaveUp)?.reason
+                ?: getString(R.string.status_disconnected)
+            shutdown(kill = true, reason = reason)
         }
     }
 

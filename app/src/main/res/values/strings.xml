@@ -13,7 +13,8 @@
     <string name="confirm_disconnect">Отключиться от адаптера?</string>
     <string name="menu_title">Связь</string>
     <string name="action_self_test">Проверка связи (зажигание, без запуска)</string>
-    <string name="action_connect_now">Подключиться</string>
+    <string name="action_connect_now">Подключиться заново (сброс всего)</string>
+    <string name="reconnecting">Сбрасываю всё и подключаюсь заново</string>
     <string name="action_transport">Канал: SPP или BLE</string>
     <string name="action_show_gears">Что выучено про передачи</string>
     <string name="action_open_console">Консоль команд</string>

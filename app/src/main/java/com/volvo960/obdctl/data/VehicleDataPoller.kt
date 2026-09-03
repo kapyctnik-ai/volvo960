@@ -69,6 +69,17 @@ class VehicleDataPoller(
     /** What the gear estimator has learnt, for the diagnostic dialog. */
     fun describeGears(): List<String> = gears.describe()
 
+    /**
+     * Wipes every conclusion the poller has drawn, for when the user demands a
+     * clean start. Nothing learnt about a link that is being thrown away should
+     * get a vote in what happens next.
+     */
+    fun hardReset() {
+        datalessResets = 0
+        lastLinkResetAtMs = 0L
+        resetForNewConnection()
+    }
+
     private companion object {
         const val PID_SUPPORTED_01 = "0100"
         const val PID_SUPPORTED_21 = "0120"
@@ -113,17 +124,13 @@ class VehicleDataPoller(
         /** Readings older than this are not shown; a frozen gauge reads as a live one. */
         const val STALE_MS = 10_000L
         /**
-         * A powered dongle in a parked car answers every request with NO DATA
-         * for ever, which the transport cannot tell from a working link. After
-         * this long without a single reading, stop the app.
-         */
-        const val GIVE_UP_WITHOUT_DATA_MS = 5 * 60_000L
-        /**
          * Before giving up, put the adapter through a reset: it can sit there
          * answering while holding a session the car has long since dropped, and
          * only ATZ plus a fresh bus initialisation clears that.
          */
         const val RESET_LINK_WITHOUT_DATA_MS = 60_000L
+        /** Rebuilds of the link, each given a minute, before calling it a day. */
+        const val MAX_DATALESS_RESETS = 5
         /** How many times to check whether the adapter understands the reply-count digit. */
         const val MAX_HINT_PROBES = 3
         /** A PID that never answers is dropped after this many silent tries. */
@@ -171,11 +178,16 @@ class VehicleDataPoller(
     private var lastDataAtMs = 0L
 
     /**
-     * The same thing, but never cleared by a reconnect. The give-up timer hangs
-     * off this: resetting the adapter every minute would otherwise restart the
-     * countdown each time and the app would poll a parked car for ever.
+     * How many times the link has been rebuilt without a single reading coming
+     * back. This, rather than a wall clock, is what decides to give up.
+     *
+     * A clock that survived reconnects looked right and was badly wrong: after
+     * a long silence it was already expired, so the first failed cycle of a
+     * fresh connection gave up instantly — every attempt died before the bus
+     * had even been initialised, and the app sat there having "given up" while
+     * a perfectly good adapter waited.
      */
-    private var lastRealDataAtMs = 0L
+    private var datalessResets = 0
     private var consecutiveFailures = 0
     private var cycle = 0
     private var seenGeneration = -1
@@ -246,12 +258,6 @@ class VehicleDataPoller(
             if (transport.connectionGeneration != seenGeneration) {
                 seenGeneration = transport.connectionGeneration
                 resetForNewConnection()
-            }
-
-            if (transport.connectionState.value is ConnectionState.Connected && lastRealDataAtMs == 0L) {
-                // Start the give-up clock from the moment there is a link to
-                // read over, not from app start.
-                lastRealDataAtMs = SystemClock.elapsedRealtime()
             }
 
             if (transport.connectionState.value !is ConnectionState.Connected) {
@@ -379,16 +385,18 @@ class VehicleDataPoller(
         }
         val now = SystemClock.elapsedRealtime()
         val silentFor = now - lastDataAtMs
-        val reallySilentFor = now - lastRealDataAtMs
-        if (lastRealDataAtMs != 0L && reallySilentFor >= GIVE_UP_WITHOUT_DATA_MS) {
-            transport.abandon("машина не отвечает ${reallySilentFor / 60_000} мин")
-            return
-        }
         if (silentFor >= RESET_LINK_WITHOUT_DATA_MS &&
             now - lastLinkResetAtMs >= RESET_LINK_WITHOUT_DATA_MS
         ) {
             lastLinkResetAtMs = now
-            transport.resetLink("нет данных ${silentFor / 1000} с")
+            datalessResets++
+            if (datalessResets >= MAX_DATALESS_RESETS) {
+                // Several full rebuilds of the link, each given a minute, and
+                // not one reading. Nobody is driving this.
+                transport.abandon("машина не отвечает, $datalessResets перезапуска подряд")
+            } else {
+                transport.resetLink("нет данных ${silentFor / 1000} с")
+            }
             return
         }
         if (silentFor < STALE_MS) return
@@ -630,7 +638,7 @@ class VehicleDataPoller(
         silentTries.remove(pid)
         everAnswered = true
         lastDataAtMs = SystemClock.elapsedRealtime()
-        lastRealDataAtMs = lastDataAtMs
+        datalessResets = 0
         val first = bytes.getOrNull(0) ?: return null
         return first to (bytes.getOrNull(1) ?: 0)
     }

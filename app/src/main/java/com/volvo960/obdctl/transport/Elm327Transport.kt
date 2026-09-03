@@ -96,6 +96,17 @@ class Elm327Transport(
     private val mutex = Mutex()
 
     @Volatile private var link: ObdLink? = null
+
+    /**
+     * The link currently being opened, if any.
+     *
+     * Opening blocks — a socket connect, or a GATT handshake with its own
+     * timeouts — and cancelling the coroutine around it does not interrupt it.
+     * Closing the link does. Without this handle a forced reconnect left the
+     * previous attempt running, holding the radio, while a new one started
+     * beside it.
+     */
+    @Volatile private var pendingLink: ObdLink? = null
     private var connectionJob: Job? = null
     @Volatile private var targetDevice: BluetoothDevice? = null
     @Volatile private var autoReconnect = false
@@ -118,6 +129,27 @@ class Elm327Transport(
         targetDevice = device
         autoReconnect = true
         connectionJob?.cancel()
+        connectionJob = scope.launch { connectLoop(device) }
+    }
+
+    /**
+     * Throws everything away and starts again, now.
+     *
+     * This is what the connect button does. Whatever the transport was in the
+     * middle of — a stalled handshake, a three-minute wait between attempts,
+     * having given up for good — none of it survives: the attempt in flight is
+     * closed out from under itself, the retry count returns to zero, and a
+     * fresh connection starts immediately. Nothing from before is consulted,
+     * because the reason the button was pressed is that what came before was
+     * wrong.
+     */
+    fun forceReconnect(device: BluetoothDevice) {
+        targetDevice = device
+        autoReconnect = true
+        connectionJob?.cancel()
+        closeQuietly()
+        _connectionState.value = ConnectionState.Connecting
+        lastReplyAtMs = SystemClock.elapsedRealtime()
         connectionJob = scope.launch { connectLoop(device) }
     }
 
@@ -310,8 +342,10 @@ class Elm327Transport(
         var lastError: String? = null
         for (candidate in candidateLinks(device)) {
             closeQuietly()
+            pendingLink = candidate
             try {
                 withContext(Dispatchers.IO) { candidate.open() }
+                pendingLink = null
                 link = candidate
                 candidate.setLowPower(lowPowerRequested)
                 lastReplyAtMs = SystemClock.elapsedRealtime()
@@ -321,11 +355,13 @@ class Elm327Transport(
                 _connectionState.value = ConnectionState.Connected("$name · ${candidate.label}", device.address)
                 return null
             } catch (e: SecurityException) {
+                pendingLink = null
                 candidate.close()
                 autoReconnect = false
                 _connectionState.value = ConnectionState.Failed("нет разрешения Bluetooth")
                 return "нет разрешения Bluetooth"
             } catch (e: IOException) {
+                pendingLink = null
                 candidate.close()
                 lastError = e.message ?: "не удалось подключиться"
                 logger.logError("${candidate.label}: $lastError")
@@ -450,5 +486,10 @@ class Elm327Transport(
     private fun closeQuietly() {
         try { link?.close() } catch (_: Exception) { }
         link = null
+        // Closing an attempt that is still opening is what unblocks it: both a
+        // socket connect and a GATT handshake abort when their object closes,
+        // and nothing else will interrupt them.
+        try { pendingLink?.close() } catch (_: Exception) { }
+        pendingLink = null
     }
 }
