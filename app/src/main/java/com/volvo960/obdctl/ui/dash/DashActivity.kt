@@ -51,6 +51,7 @@ class DashActivity : AppCompatActivity() {
     private lateinit var tileRpm: TileView
     private lateinit var tileConsumption: TileView
     private lateinit var tileAverage: TileView
+    private lateinit var tileAverageAll: TileView
     private lateinit var tileThrottle: TileView
     private lateinit var tileTrip: TileView
     private lateinit var tileTotal: TileView
@@ -133,13 +134,14 @@ class DashActivity : AppCompatActivity() {
         // computed from.
         tileCoolant = tile(R.string.tile_coolant, "°C")
         tileRpm = tile(R.string.tile_rpm, getString(R.string.unit_rpm))
-        tileAverage = tile(R.string.tile_average, getString(R.string.unit_l100))
+        tileAverage = tile(R.string.tile_average_trip, getString(R.string.unit_l100))
         tileConsumption = tile(R.string.tile_consumption, getString(R.string.unit_l100))
-        tileLoad = tile(R.string.tile_load, "%")
+        tileAverageAll = tile(R.string.tile_average_all, getString(R.string.unit_l100))
         tileThrottle = tile(R.string.tile_throttle, "%")
+        tileLoad = tile(R.string.tile_load, "%")
+        tileIntake = tile(R.string.tile_intake, "°C")
         tileTrip = tile(R.string.tile_trip, getString(R.string.unit_km))
         tileTotal = tile(R.string.tile_total, getString(R.string.unit_km))
-        tileIntake = tile(R.string.tile_intake, "°C")
 
         tileTrip.setOnLongClickListener {
             AlertDialog.Builder(this)
@@ -397,6 +399,7 @@ class DashActivity : AppCompatActivity() {
         tileConsumption.value = state.consumptionL100?.let { format1(it) }
         tileConsumption.unit = listOfNotNull(getString(R.string.unit_l100), source).joinToString(" · ")
         tileAverage.value = state.averageL100?.let { format1(it) }
+        tileAverageAll.value = state.averageAllL100?.let { format1(it) }
         tileThrottle.value = state.throttlePercent?.toString()
         tileTrip.value = format1(state.tripKm)
         tileTotal.value = format1(state.totalKm)

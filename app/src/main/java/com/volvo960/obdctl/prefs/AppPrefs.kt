@@ -50,6 +50,11 @@ class AppPrefs(context: Context) : VehicleDataPoller.TripStore, GearEstimator.St
         get() = double(KEY_TRIP_FUEL)
         set(value) = putDouble(KEY_TRIP_FUEL, value)
 
+    /** Litres burnt since the app was installed; pairs with [totalKm]. */
+    override var totalFuelL: Double
+        get() = double(KEY_TOTAL_FUEL)
+        set(value) = putDouble(KEY_TOTAL_FUEL, value)
+
     /**
      * What the tank holds, litres. Entered by hand after filling up and then
      * drawn down by the computed flow — the car's level sender reports a
@@ -77,6 +82,7 @@ class AppPrefs(context: Context) : VehicleDataPoller.TripStore, GearEstimator.St
         private const val KEY_TRIP_KM = "trip_km"
         private const val KEY_TOTAL_KM = "total_km"
         private const val KEY_TRIP_FUEL = "trip_fuel_l"
+        private const val KEY_TOTAL_FUEL = "total_fuel_l"
         private const val KEY_TANK_LITERS = "tank_liters"
     }
 }

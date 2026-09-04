@@ -57,7 +57,8 @@
     <string name="tile_coolant">Температура ОЖ</string>
     <string name="tile_rpm">Обороты</string>
     <string name="tile_consumption">Расход</string>
-    <string name="tile_average">Средний расход</string>
+    <string name="tile_average_trip">Средний за trip</string>
+    <string name="tile_average_all">Средний за всё</string>
     <string name="tile_throttle">Дроссель</string>
     <string name="tile_trip">Trip (удержать — сброс)</string>
     <string name="tile_total">Пробег</string>

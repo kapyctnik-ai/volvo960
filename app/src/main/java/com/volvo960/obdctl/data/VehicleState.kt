@@ -21,8 +21,10 @@ data class VehicleState(
     val fuelRateLph: Double? = null,
     /** Litres per 100 km right now; null while stopped, where L/h is the honest figure. */
     val consumptionL100: Double? = null,
-    /** Trip average, litres per 100 km. */
+    /** Trip average, litres per 100 km — this trip only. */
     val averageL100: Double? = null,
+    /** Average over everything the app has ever counted. */
+    val averageAllL100: Double? = null,
     /** How the fuel rate was obtained, for the tile's subtitle. */
     val fuelSource: FuelSource? = null,
     val tripKm: Double = 0.0,

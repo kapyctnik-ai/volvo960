@@ -60,6 +60,7 @@ class VehicleDataPoller(
         var tripKm: Double
         var totalKm: Double
         var tripFuelL: Double
+        var totalFuelL: Double
         var tankLiters: Double
     }
 
@@ -597,13 +598,16 @@ class VehicleDataPoller(
         val tripKm = prefs.tripKm + km
         val totalKm = prefs.totalKm + km
         val tripFuel = prefs.tripFuelL + litres
+        val totalFuel = prefs.totalFuelL + litres
         val tank = (prefs.tankLiters - litres).coerceAtLeast(0.0)
         prefs.tripKm = tripKm
         prefs.totalKm = totalKm
         prefs.tripFuelL = tripFuel
+        prefs.totalFuelL = totalFuel
         prefs.tankLiters = tank
 
         val average = if (tripKm > 0.3 && tripFuel > 0.01) tripFuel / tripKm * 100.0 else null
+        val averageAll = if (totalKm > 0.3 && totalFuel > 0.01) totalFuel / totalKm * 100.0 else null
         _state.update {
             it.copy(
                 fuelRateLph = fuel?.first,
@@ -614,6 +618,7 @@ class VehicleDataPoller(
                 tripFuelL = tripFuel,
                 tankLiters = tank,
                 averageL100 = average,
+                averageAllL100 = averageAll,
                 rangeKm = rangeFor(tank, average),
             )
         }
