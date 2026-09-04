@@ -1,0 +1,2882 @@
+[
+ {
+  "id": "r760-sas",
+  "time_s": 10.0,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r760_9d2eb04a4d",
+    "sale": "18009.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "17220.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_r6525_baac9633a3",
+    "sale": "11796.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R6525 8SFF",
+    "cpu": "AMD EPYC 7452 (32C, 64T, 2,35Ghz, 155W)",
+    "dev": [
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": [
+   "DIRECT: 4 drives but no tray line"
+  ]
+ },
+ {
+  "id": "r760-nvme",
+  "time_s": 1.2,
+  "status": "NO_VALID_OPTIONS",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": null,
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "r760-25g",
+  "time_s": 0.5,
+  "status": "NO_VALID_OPTIONS",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": null,
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "r760-10g",
+  "time_s": 20.4,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r760_9d2eb04a4d",
+    "sale": "11219.40",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [
+     [
+      1,
+      2,
+      10,
+      "SFP+"
+     ]
+    ],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "10425.60",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [
+     [
+      1,
+      2,
+      10,
+      "SFP+"
+     ]
+    ],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_dl385_gen10_d3dda0a6ea",
+    "sale": "4092.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [
+     [
+      1,
+      2,
+      10,
+      "SFP+"
+     ]
+    ],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "HPE DL385 Gen10 8LFF",
+    "cpu": "AMD EPYC 7452 (32C, 64T, 2,35Ghz, 155W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": []
+ },
+ {
+  "id": "r760-1cpu",
+  "time_s": 5.1,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r760_9d2eb04a4d",
+    "sale": "11565.00",
+    "ram_gb": 128,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      2,
+      960.0,
+      "SATA",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "10932.00",
+    "ram_gb": 128,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      2,
+      960.0,
+      "SATA",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 2,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_r6525_baac9633a3",
+    "sale": "4408.00",
+    "ram_gb": 128,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      2,
+      960.0,
+      "SATA",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 2,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R6525 8SFF",
+    "cpu": "AMD EPYC 7452 (32C, 64T, 2,35Ghz, 155W)",
+    "dev": [
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": [
+   "DIRECT: 2 drives but no tray line"
+  ]
+ },
+ {
+  "id": "r760-qty3",
+  "time_s": 10.7,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r760_9d2eb04a4d",
+    "sale": "18009.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "17220.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_r6525_baac9633a3",
+    "sale": "11796.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R6525 8SFF",
+    "cpu": "AMD EPYC 7452 (32C, 64T, 2,35Ghz, 155W)",
+    "dev": [
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": [
+   "DIRECT: 4 drives but no tray line"
+  ]
+ },
+ {
+  "id": "r760-nodrives",
+  "time_s": 20.5,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r760_9d2eb04a4d",
+    "sale": "10977.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "10183.20",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_dl385_gen10_d3dda0a6ea",
+    "sale": "4050.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "HPE DL385 Gen10 8LFF",
+    "cpu": "AMD EPYC 7452 (32C, 64T, 2,35Ghz, 155W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": []
+ },
+ {
+  "id": "r760-2pools",
+  "time_s": 7.8,
+  "status": "NO_VALID_OPTIONS",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": null,
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "r760-usable",
+  "time_s": 42.8,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r760_9d2eb04a4d",
+    "sale": "38205.00",
+    "ram_gb": 128,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      5,
+      15360.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760 8SFF",
+    "cpu": "(NEW) Intel Xeon Silver 4410Y (12C 30M Cache 2.00 ",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl360_gen11_679da53876",
+    "sale": "12290.40",
+    "ram_gb": 128,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      20000.0,
+      "SAS",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 4LFF",
+    "cpu": "(NEW) Intel Xeon Silver 4410Y (12C 30M Cache 2.00 ",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_r640_d9ead18955",
+    "sale": "3923.60",
+    "ram_gb": 128,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      20000.0,
+      "SAS",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R640 4LFF",
+    "cpu": "Silver 4116 (12C, 24T, 2,10Ghz, 85W)",
+    "dev": [
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": [
+   "DIRECT: 5 drives but no tray line"
+  ]
+ },
+ {
+  "id": "r760-gpu",
+  "time_s": 1.6,
+  "status": "DEGRADED",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r760_9d2eb04a4d",
+    "sale": "35037.00",
+    "ram_gb": 512,
+    "cpus": 2,
+    "dimms": 4,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6414U (32C 60M Cache 2.00 GH",
+    "dev": [
+     "cpu_equivalent_or_better",
+     "gpu_equivalent_or_better"
+    ]
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl380_gen11_4a5c0e51b6",
+    "sale": "33981.60",
+    "ram_gb": 512,
+    "cpus": 2,
+    "dimms": 4,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL380 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6421N (32C 60M Cache 1.80 GH",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "cpu_equivalent_or_better"
+    ]
+   },
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "r760xs",
+  "time_s": 36.7,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r760xs_3296e6a5bd",
+    "sale": "11608.80",
+    "ram_gb": 128,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      2400.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760xs 8SFF",
+    "cpu": "(NEW) Intel Xeon Silver 4410Y (12C 30M Cache 2.00 ",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "11292.00",
+    "ram_gb": 128,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      2400.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Silver 4410Y (12C 30M Cache 2.00 ",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_r640_51ef31ca50",
+    "sale": "3111.60",
+    "ram_gb": 128,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      2400.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R640 8SFF",
+    "cpu": "Silver 4116 (12C, 24T, 2,10Ghz, 85W)",
+    "dev": [
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": [
+   "DIRECT: 4 drives but no tray line"
+  ]
+ },
+ {
+  "id": "r660",
+  "time_s": 32.7,
+  "status": "NO_VALID_OPTIONS",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": null,
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "r650",
+  "time_s": 25.7,
+  "status": "NO_VALID_OPTIONS",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": null,
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "r740-ref",
+  "time_s": 1.9,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r740_87ad4d2386",
+    "sale": "7001.20",
+    "ram_gb": 384,
+    "cpus": 2,
+    "dimms": 3,
+    "drives": [
+     [
+      8,
+      2400.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 8,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R740 16SFF",
+    "cpu": "Gold 6248 (20C, 40T, 2.50Ghz, 150W)",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl380_gen10_2f0bcc3d8a",
+    "sale": "7648.00",
+    "ram_gb": 384,
+    "cpus": 2,
+    "dimms": 3,
+    "drives": [
+     [
+      8,
+      2400.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 8,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "DL380 Gen10 16SFF",
+    "cpu": "Gold 6248 (20C, 40T, 2.50Ghz, 150W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_r640_51ef31ca50",
+    "sale": "6791.20",
+    "ram_gb": 384,
+    "cpus": 2,
+    "dimms": 3,
+    "drives": [
+     [
+      8,
+      2400.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 8,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R640 8SFF",
+    "cpu": "Gold 6248 (20C, 40T, 2.50Ghz, 150W)",
+    "dev": [
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   }
+  },
+  "flags": [
+   "DIRECT: odd DIMM count 3 on 2 CPUs",
+   "ALTERNATIVE: odd DIMM count 3 on 2 CPUs",
+   "VALUE: odd DIMM count 3 on 2 CPUs"
+  ]
+ },
+ {
+  "id": "r740xd",
+  "time_s": 32.0,
+  "status": "DEGRADED",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r740_ee20a4c058",
+    "sale": "3438.80",
+    "ram_gb": 192,
+    "cpus": 2,
+    "dimms": 3,
+    "drives": [
+     [
+      4,
+      1200.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [
+     [
+      1,
+      2,
+      10,
+      "RJ-45"
+     ]
+    ],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R740xd 24SFF (12SAS/SATA + 12xNVME)",
+    "cpu": "Silver 4214 (12C, 24T, 2,20Ghz, 85W)",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl380_gen10_b615281653",
+    "sale": "3034.20",
+    "ram_gb": 192,
+    "cpus": 2,
+    "dimms": 3,
+    "drives": [
+     [
+      4,
+      1200.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [
+     [
+      1,
+      2,
+      10,
+      "RJ-45"
+     ]
+    ],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "HPE DL380 Gen10 8SFF",
+    "cpu": "Silver 4214 (12C, 24T, 2,20Ghz, 85W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": null
+  },
+  "flags": [
+   "DIRECT: odd DIMM count 3 on 2 CPUs",
+   "DIRECT: REF platform/components in a NEW request (['REF'], plat=REF)",
+   "ALTERNATIVE: odd DIMM count 3 on 2 CPUs",
+   "ALTERNATIVE: REF platform/components in a NEW request (['REF'], plat=REF)"
+  ]
+ },
+ {
+  "id": "r7525",
+  "time_s": 1.9,
+  "status": "NO_VALID_OPTIONS",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": null,
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "t360",
+  "time_s": 53.1,
+  "status": "NO_VALID_OPTIONS",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": null,
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "t360-simple",
+  "time_s": 46.8,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_t360_c50e223edc",
+    "sale": "5318.40",
+    "ram_gb": 64,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell T360 4LFF",
+    "cpu": "(NEW) Intel Xeon E-2488 (8C 24M Cache 3.20 GHz)",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "6433.20",
+    "ram_gb": 64,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "cpu_equivalent_or_better"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_dl380_gen10_b615281653",
+    "sale": "768.80",
+    "ram_gb": 64,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "HPE DL380 Gen10 8SFF",
+    "cpu": "Bronze 3106 (8C, 8T, 1,70Ghz, 85W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": []
+ },
+ {
+  "id": "t560",
+  "time_s": 71.3,
+  "status": "NO_VALID_OPTIONS",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": null,
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "dl380g11",
+  "time_s": 10.0,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl380_gen11_4a5c0e51b6",
+    "sale": "17426.40",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL380 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r760xs_3296e6a5bd",
+    "sale": "17707.20",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760xs 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_r6525_baac9633a3",
+    "sale": "11796.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R6525 8SFF",
+    "cpu": "AMD EPYC 7452 (32C, 64T, 2,35Ghz, 155W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": [
+   "ALTERNATIVE: 4 drives but no tray line"
+  ]
+ },
+ {
+  "id": "dl380g11-25g",
+  "time_s": 0.5,
+  "status": "DEGRADED",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl380_gen11_4a5c0e51b6",
+    "sale": "10869.60",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [
+     [
+      1,
+      2,
+      25,
+      "SFP28"
+     ]
+    ],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL380 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": []
+   },
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "dl360g11",
+  "time_s": 11.0,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "16464.00",
+    "ram_gb": 512,
+    "cpus": 2,
+    "dimms": 4,
+    "drives": [
+     [
+      2,
+      960.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 2,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6426Y (16C 37.5M Cache 2.50 ",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r760xs_3296e6a5bd",
+    "sale": "16795.20",
+    "ram_gb": 512,
+    "cpus": 2,
+    "dimms": 4,
+    "drives": [
+     [
+      2,
+      960.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760xs 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6426Y (16C 37.5M Cache 2.50 ",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_r640_51ef31ca50",
+    "sale": "7080.00",
+    "ram_gb": 512,
+    "cpus": 2,
+    "dimms": 4,
+    "drives": [
+     [
+      2,
+      960.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 2,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R640 8SFF",
+    "cpu": "Gold 5218 (16C 32T, 2,30Ghz, 125W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": [
+   "ALTERNATIVE: 2 drives but no tray line"
+  ]
+ },
+ {
+  "id": "dl380g10-ref",
+  "time_s": 1.8,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl380_gen10_b615281653",
+    "sale": "7237.80",
+    "ram_gb": 384,
+    "cpus": 2,
+    "dimms": 3,
+    "drives": [
+     [
+      8,
+      2400.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 8,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "HPE DL380 Gen10 8SFF",
+    "cpu": "Gold 6248 (20C, 40T, 2.50Ghz, 150W)",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r740_e006699d0e",
+    "sale": "6887.20",
+    "ram_gb": 384,
+    "cpus": 2,
+    "dimms": 3,
+    "drives": [
+     [
+      8,
+      4000.0,
+      "SAS",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 8,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R740 8LFF",
+    "cpu": "Gold 6248 (20C, 40T, 2.50Ghz, 150W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_r640_51ef31ca50",
+    "sale": "6791.20",
+    "ram_gb": 384,
+    "cpus": 2,
+    "dimms": 3,
+    "drives": [
+     [
+      8,
+      2400.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 8,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R640 8SFF",
+    "cpu": "Gold 6248 (20C, 40T, 2.50Ghz, 150W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   }
+  },
+  "flags": [
+   "DIRECT: odd DIMM count 3 on 2 CPUs",
+   "ALTERNATIVE: odd DIMM count 3 on 2 CPUs",
+   "VALUE: odd DIMM count 3 on 2 CPUs"
+  ]
+ },
+ {
+  "id": "dl360g10-ref",
+  "time_s": 1.3,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl360_gen10_4250303169",
+    "sale": "9088.40",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SATA",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "DL360 Gen10 8SFF",
+    "cpu": "Gold 6130 (16C, 32T, 2,10Ghz, 120W)",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r740_87ad4d2386",
+    "sale": "8968.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SATA",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R740 16SFF",
+    "cpu": "Gold 6130 (16C, 32T, 2,10Ghz, 120W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_r640_51ef31ca50",
+    "sale": "8842.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SATA",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R640 8SFF",
+    "cpu": "Gold 6130 (16C, 32T, 2,10Ghz, 120W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   }
+  },
+  "flags": []
+ },
+ {
+  "id": "dl380g10-plus",
+  "time_s": 31.2,
+  "status": "DEGRADED",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl380_gen10_b615281653",
+    "sale": "16110.60",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      8,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 8,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "HPE DL380 Gen10 8SFF",
+    "cpu": "Gold 5218 (16C 32T, 2,30Ghz, 125W)",
+    "dev": [
+     "cpu_equivalent_or_better"
+    ]
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r640_51ef31ca50",
+    "sale": "15762.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      8,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 8,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R640 8SFF",
+    "cpu": "Gold 5218 (16C 32T, 2,30Ghz, 125W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "cpu_equivalent_or_better"
+    ]
+   },
+   "VALUE": null
+  },
+  "flags": [
+   "DIRECT: REF platform/components in a NEW request (['REF'], plat=REF)",
+   "ALTERNATIVE: REF platform/components in a NEW request (['REF'], plat=REF)"
+  ]
+ },
+ {
+  "id": "dl385",
+  "time_s": 2.5,
+  "status": "DEGRADED",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r7625_75fcfe01d0",
+    "sale": "37176.00",
+    "ram_gb": 768,
+    "cpus": 2,
+    "dimms": 6,
+    "drives": [
+     [
+      8,
+      3840.0,
+      "NVMe",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R7625 24SFF",
+    "cpu": "(NEW) AMD EPYC 9334 (32C 128M Cache 2.70 GHz)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "cpu_equivalent_or_better"
+    ]
+   },
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": [
+   "DIRECT: 8 drives but no tray line"
+  ]
+ },
+ {
+  "id": "ml350",
+  "time_s": 31.8,
+  "status": "DEGRADED",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_ml350_gen10_60d05288b0",
+    "sale": "3330.80",
+    "ram_gb": 64,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      4000.0,
+      "SATA",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "HPE ML350 Gen10 12LFF",
+    "cpu": "Silver 4116 (12C, 24T, 2,10Ghz, 85W)",
+    "dev": [
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "cpu_equivalent_or_better"
+    ]
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r640_d9ead18955",
+    "sale": "2570.60",
+    "ram_gb": 64,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      4000.0,
+      "SATA",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R640 4LFF",
+    "cpu": "Silver 4116 (12C, 24T, 2,10Ghz, 85W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "cpu_equivalent_or_better"
+    ]
+   },
+   "VALUE": null
+  },
+  "flags": [
+   "DIRECT: REF platform/components in a NEW request (['REF'], plat=REF)",
+   "ALTERNATIVE: REF platform/components in a NEW request (['REF'], plat=REF)"
+  ]
+ },
+ {
+  "id": "virt",
+  "time_s": 9.2,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "27859.20",
+    "ram_gb": 512,
+    "cpus": 2,
+    "dimms": 4,
+    "drives": [
+     [
+      3,
+      15360.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 3,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r760xs_3296e6a5bd",
+    "sale": "28183.20",
+    "ram_gb": 512,
+    "cpus": 2,
+    "dimms": 4,
+    "drives": [
+     [
+      3,
+      15360.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760xs 8SFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": []
+   },
+   "VALUE": {
+    "platform": "plt_r640_51ef31ca50",
+    "sale": "21449.00",
+    "ram_gb": 512,
+    "cpus": 2,
+    "dimms": 4,
+    "drives": [
+     [
+      3,
+      15360.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 3,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R640 8SFF",
+    "cpu": "Intel Xeon Silver 4112 (4C 8.25M Caсhe 2.60 GHz)",
+    "dev": []
+   }
+  },
+  "flags": [
+   "ALTERNATIVE: 3 drives but no tray line"
+  ]
+ },
+ {
+  "id": "virt-cores",
+  "time_s": 2.2,
+  "status": "DEGRADED",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "15307.20",
+    "ram_gb": 128,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      3,
+      7680.0,
+      "NVMe",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 3,
+    "nics": [
+     [
+      1,
+      4,
+      25,
+      "SFP28"
+     ]
+    ],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": []
+   },
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "backup",
+  "time_s": 2.6,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl380_gen11_1cbdf015dd",
+    "sale": "20775.60",
+    "ram_gb": 128,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      12,
+      16000.0,
+      "SAS",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 12,
+    "nics": [
+     [
+      1,
+      2,
+      10,
+      "SFP+"
+     ]
+    ],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL380 Gen11 12LFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r7615_5643a9e4e5",
+    "sale": "21812.40",
+    "ram_gb": 128,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      12,
+      16000.0,
+      "SAS",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [
+     [
+      1,
+      2,
+      10,
+      "SFP+"
+     ]
+    ],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R7615 12LFF",
+    "cpu": "(NEW) AMD EPYC 9124 (16C 64M Cache 3.00 GHz)",
+    "dev": []
+   },
+   "VALUE": {
+    "platform": "plt_r740_84141e9edb",
+    "sale": "12514.80",
+    "ram_gb": 128,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      12,
+      16000.0,
+      "SAS",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 12,
+    "nics": [
+     [
+      1,
+      2,
+      10,
+      "SFP+"
+     ]
+    ],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R740xd 12LFF",
+    "cpu": "Bronze 3106 (8C, 8T, 1,70Ghz, 85W)",
+    "dev": []
+   }
+  },
+  "flags": [
+   "ALTERNATIVE: 12 drives but no tray line"
+  ]
+ },
+ {
+  "id": "db",
+  "time_s": 1.4,
+  "status": "DEGRADED",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "28308.00",
+    "ram_gb": 128,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      3840.0,
+      "NVMe",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6448Y (32C 60M Cache 2.10 GH",
+    "dev": []
+   },
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "ad",
+  "time_s": 408.4,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl360_gen11_679da53876",
+    "sale": "6502.80",
+    "ram_gb": 32,
+    "cpus": 1,
+    "dimms": 1,
+    "drives": [
+     [
+      2,
+      2000.0,
+      "SATA",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 2,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 4LFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r7615_1004c56d6b",
+    "sale": "8406.00",
+    "ram_gb": 32,
+    "cpus": 1,
+    "dimms": 1,
+    "drives": [
+     [
+      2,
+      2000.0,
+      "SATA",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R7615 8LFF",
+    "cpu": "(NEW) AMD EPYC 9124 (16C 64M Cache 3.00 GHz)",
+    "dev": []
+   },
+   "VALUE": {
+    "platform": "plt_r640_d9ead18955",
+    "sale": "1430.80",
+    "ram_gb": 32,
+    "cpus": 1,
+    "dimms": 1,
+    "drives": [
+     [
+      2,
+      2000.0,
+      "SATA",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 2,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R640 4LFF",
+    "cpu": "Bronze 3106 (8C, 8T, 1,70Ghz, 85W)",
+    "dev": []
+   }
+  },
+  "flags": [
+   "ALTERNATIVE: 2 drives but no tray line"
+  ]
+ },
+ {
+  "id": "file",
+  "time_s": 12.8,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl380_gen11_f15476a7e4",
+    "sale": "14437.20",
+    "ram_gb": 64,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      6,
+      26000.0,
+      "SATA",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 6,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL380 Gen11 8LFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r7625_75fcfe01d0",
+    "sale": "59130.00",
+    "ram_gb": 64,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      9,
+      15360.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R7625 24SFF",
+    "cpu": "(NEW) AMD EPYC 9124 (16C 64M Cache 3.00 GHz)",
+    "dev": []
+   },
+   "VALUE": {
+    "platform": "plt_r740_e006699d0e",
+    "sale": "8136.00",
+    "ram_gb": 64,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      6,
+      26000.0,
+      "SATA",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 6,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R740 8LFF",
+    "cpu": "Bronze 3106 (8C, 8T, 1,70Ghz, 85W)",
+    "dev": []
+   }
+  },
+  "flags": [
+   "ALTERNATIVE: 9 drives but no tray line"
+  ]
+ },
+ {
+  "id": "gpu-ai",
+  "time_s": 0.0,
+  "status": null,
+  "unsupported": "WORKLOAD_UNSUPPORTED",
+  "question": null,
+  "ready": false,
+  "roles": {},
+  "flags": []
+ },
+ {
+  "id": "cheap",
+  "time_s": 17.6,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "9776.40",
+    "ram_gb": 128,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1200.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r760xs_3296e6a5bd",
+    "sale": "10093.20",
+    "ram_gb": 128,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1200.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760xs 8SFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": []
+   },
+   "VALUE": {
+    "platform": "plt_r640_51ef31ca50",
+    "sale": "2180.00",
+    "ram_gb": 128,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1200.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R640 8SFF",
+    "cpu": "Bronze 3106 (8C, 8T, 1,70Ghz, 85W)",
+    "dev": []
+   }
+  },
+  "flags": [
+   "ALTERNATIVE: 4 drives but no tray line"
+  ]
+ },
+ {
+  "id": "email",
+  "time_s": 13.5,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r760_9d2eb04a4d",
+    "sale": "13185.00",
+    "ram_gb": 512,
+    "cpus": 1,
+    "dimms": 4,
+    "drives": [
+     [
+      2,
+      1200.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "12552.00",
+    "ram_gb": 512,
+    "cpus": 1,
+    "dimms": 4,
+    "drives": [
+     [
+      2,
+      1200.0,
+      "SAS",
+      "HDD",
+      "SFF"
+     ]
+    ],
+    "trays": 2,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_dl385_gen10_d3dda0a6ea",
+    "sale": "6510.40",
+    "ram_gb": 512,
+    "cpus": 1,
+    "dimms": 4,
+    "drives": [
+     [
+      2,
+      2000.0,
+      "SAS",
+      "HDD",
+      "LFF"
+     ]
+    ],
+    "trays": 2,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "HPE DL385 Gen10 8LFF",
+    "cpu": "AMD EPYC 7452 (32C, 64T, 2,35Ghz, 155W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": [
+   "DIRECT: 2 drives but no tray line"
+  ]
+ },
+ {
+  "id": "chat",
+  "time_s": 24.2,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r760_9d2eb04a4d",
+    "sale": "7083.00",
+    "ram_gb": 64,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760 8SFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "6433.20",
+    "ram_gb": 64,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": [
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_dl380_gen10_b615281653",
+    "sale": "768.80",
+    "ram_gb": 64,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "HPE DL380 Gen10 8SFF",
+    "cpu": "Bronze 3106 (8C, 8T, 1,70Ghz, 85W)",
+    "dev": [
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   }
+  },
+  "flags": []
+ },
+ {
+  "id": "lenovo",
+  "time_s": 0.0,
+  "status": null,
+  "unsupported": "UNSUPPORTED_VENDOR_OR_PLATFORM",
+  "question": null,
+  "ready": false,
+  "roles": {},
+  "flags": []
+ },
+ {
+  "id": "supermicro",
+  "time_s": 0.0,
+  "status": null,
+  "unsupported": "UNSUPPORTED_VENDOR_OR_PLATFORM",
+  "question": null,
+  "ready": false,
+  "roles": {},
+  "flags": []
+ },
+ {
+  "id": "ram-only",
+  "time_s": 15.1,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "6913.20",
+    "ram_gb": 256,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r760xs_3296e6a5bd",
+    "sale": "7261.20",
+    "ram_gb": 256,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760xs 8SFF",
+    "cpu": "(NEW) Intel Xeon Bronze 3408U (8C 22.5M Cache 1.80",
+    "dev": []
+   },
+   "VALUE": {
+    "platform": "plt_dl380_gen10_b615281653",
+    "sale": "2484.80",
+    "ram_gb": 256,
+    "cpus": 1,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "HPE DL380 Gen10 8SFF",
+    "cpu": "Bronze 3106 (8C, 8T, 1,70Ghz, 85W)",
+    "dev": []
+   }
+  },
+  "flags": []
+ },
+ {
+  "id": "hpe-ddr4-new",
+  "time_s": 8.0,
+  "status": "DEGRADED",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_dl380_gen10_b615281653",
+    "sale": "10806.20",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "HPE DL380 Gen10 8SFF",
+    "cpu": "Gold 6248R (24C, 48T, 3,00Ghz, 205W)",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_r640_51ef31ca50",
+    "sale": "10760.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R640 8SFF",
+    "cpu": "Gold 6248R (24C, 48T, 3,00Ghz, 205W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": null
+  },
+  "flags": [
+   "DIRECT: REF platform/components in a NEW request (['REF'], plat=REF)",
+   "ALTERNATIVE: REF platform/components in a NEW request (['REF'], plat=REF)"
+  ]
+ },
+ {
+  "id": "odd-ram",
+  "time_s": 8.8,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r760_9d2eb04a4d",
+    "sale": "19689.00",
+    "ram_gb": 384,
+    "cpus": 2,
+    "dimms": 3,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 0,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "18900.00",
+    "ram_gb": 384,
+    "cpus": 2,
+    "dimms": 3,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "NEW",
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_r6525_baac9633a3",
+    "sale": "12876.00",
+    "ram_gb": 384,
+    "cpus": 2,
+    "dimms": 3,
+    "drives": [
+     [
+      4,
+      1920.0,
+      "SAS",
+      "SSD",
+      "SFF"
+     ]
+    ],
+    "trays": 4,
+    "nics": [],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "REF",
+    "plat_name": "R6525 8SFF",
+    "cpu": "AMD EPYC 7452 (32C, 64T, 2,35Ghz, 155W)",
+    "dev": [
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": [
+   "DIRECT: odd DIMM count 3 on 2 CPUs",
+   "DIRECT: 4 drives but no tray line",
+   "ALTERNATIVE: odd DIMM count 3 on 2 CPUs",
+   "VALUE: odd DIMM count 3 on 2 CPUs"
+  ]
+ },
+ {
+  "id": "tb-ram",
+  "time_s": 3.0,
+  "status": "NO_VALID_OPTIONS",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": null,
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "raid1-3drives",
+  "time_s": 0.4,
+  "status": "NO_VALID_OPTIONS",
+  "unsupported": "CATALOG_COVERAGE_GAP",
+  "question": null,
+  "ready": false,
+  "roles": {
+   "DIRECT": null,
+   "ALTERNATIVE": null,
+   "VALUE": null
+  },
+  "flags": []
+ },
+ {
+  "id": "nic-4x10",
+  "time_s": 20.1,
+  "status": "COMPLETE",
+  "unsupported": null,
+  "question": null,
+  "ready": true,
+  "roles": {
+   "DIRECT": {
+    "platform": "plt_r760_9d2eb04a4d",
+    "sale": "11182.20",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [
+     [
+      1,
+      4,
+      10,
+      "BASE-T"
+     ]
+    ],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "Dell",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) Dell R760 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": []
+   },
+   "ALTERNATIVE": {
+    "platform": "plt_dl360_gen11_18e45acc7d",
+    "sale": "10388.40",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [
+     [
+      1,
+      4,
+      10,
+      "BASE-T"
+     ]
+    ],
+    "conds": [
+     "NEW"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "NEW",
+    "plat_name": "(NEW) HPE DL360 Gen11 8SFF",
+    "cpu": "(NEW) Intel Xeon Gold 6430 (32C 60M Cache 2.10 GHz",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement"
+    ]
+   },
+   "VALUE": {
+    "platform": "plt_dl385_gen10_d3dda0a6ea",
+    "sale": "4218.00",
+    "ram_gb": 256,
+    "cpus": 2,
+    "dimms": 2,
+    "drives": [],
+    "trays": 0,
+    "nics": [
+     [
+      1,
+      4,
+      10,
+      "RJ-45"
+     ]
+    ],
+    "conds": [
+     "REF"
+    ],
+    "vendor": "HPE",
+    "plat_condition": "REF",
+    "plat_name": "HPE DL385 Gen10 8LFF",
+    "cpu": "AMD EPYC 7452 (32C, 64T, 2,35Ghz, 155W)",
+    "dev": [
+     "preferred_vendor_not_used",
+     "preferred_model_not_used",
+     "compatible_model_replacement",
+     "older_generation_value_option"
+    ]
+   }
+  },
+  "flags": []
+ }
+]
