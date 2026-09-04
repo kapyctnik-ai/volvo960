@@ -1,0 +1,1328 @@
+From c2fe431a1a4a313eed28e87a2fdfabeb8b5a839a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 4 Sep 2026 22:01:07 +0000
+Subject: [PATCH] Audit 2026-09-04: refuse non-English RFQs, keep clarification
+ context, unblock the event loop, harden price entry, fix prose/SFP28 parsing
+
+- new_path/service.py: NON_ENGLISH_INPUT guard (Cyrillic text used to yield a
+  silently reduced, approvable plan); looks_like_full_rfq needs two independent
+  signals so short clarification answers no longer restart the request; public
+  entry points serialised with an RLock; price range error says EUR.
+- bot/handlers.py: planner calls run via asyncio.to_thread; price parsing
+  handles thousands/decimal separators and accepts only price-shaped messages;
+  a new RFQ typed while a price is pending starts a fresh request; /prices
+  prompts say EUR (pricing has been EUR end to end since fe179f6); stale
+  /start and /quote copy.
+- parsing/normalize.py: number words and "dual" before components or numbers,
+  "N processors", "dual-socket", terabyte memory and "GB of memory".
+- parsing/extractors/network.py: sfp28 before sfp\\+? so 25GbE SFP28 is not
+  normalised to SFP+; one requirement per (ports, speed) instead of duplicates.
+- parsing/extractors/storage.py: usable pools take media/protocol from the
+  rest of the clause; the drive-pack guard window stops at the clause boundary.
+- main.py: clear startup error when the configurator workbook is missing.
+- Dockerfile/docker-compose: drop the non-existent templates directory.
+- docs/AUDIT_2026-09-04.md: findings, fixes, open items, verification on the
+  real workbook; CLAUDE.md pointer.
+- tests/test_audit_2026_09_regressions.py: 58 workbook-free regressions.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hz9XYGgeu1BeZSp8N5BNoV
+---
+ CLAUDE.md                                     |   4 +
+ Dockerfile                                    |   2 -
+ docker-compose.yml                            |   1 -
+ docs/AUDIT_2026-09-04.md                      | 340 +++++++++++++++++
+ src/servermall_cpq/bot/handlers.py            | 114 ++++--
+ src/servermall_cpq/main.py                    |  10 +
+ src/servermall_cpq/new_path/service.py        | 100 ++++-
+ .../parsing/extractors/network.py             |  15 +-
+ .../parsing/extractors/storage.py             |  23 +-
+ src/servermall_cpq/parsing/normalize.py       |  26 ++
+ src/servermall_cpq/presentation/copy.py       |   6 +
+ tests/test_audit_2026_09_regressions.py       | 341 ++++++++++++++++++
+ 12 files changed, 946 insertions(+), 36 deletions(-)
+ create mode 100644 docs/AUDIT_2026-09-04.md
+ create mode 100644 tests/test_audit_2026_09_regressions.py
+
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 48c3997..2cbe44d 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -2,6 +2,10 @@
+ 
+ Read [`docs/HANDOFF_CLAUDE_CODE.md`](docs/HANDOFF_CLAUDE_CODE.md) completely before changing this project.
+ 
++Then read [`docs/AUDIT_2026-09-04.md`](docs/AUDIT_2026-09-04.md): the latest audit,
++which fixes are in the tree (grep `AUDIT 2026-09-04`), and the open defects in
++priority order.
++
+ The handoff contains the product contract, architecture, pricing rules, current release state, real test commands, deployment procedure, and definition of done.
+ 
+ Product outcome in one line: a free-form English text RFQ goes in, three priced commercial proposals (DIRECT / ALTERNATIVE / VALUE) come out.
+diff --git a/Dockerfile b/Dockerfile
+index 498acac..1cc6b53 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -8,7 +8,6 @@ WORKDIR /app
+ 
+ COPY pyproject.toml README.md ./
+ COPY src ./src
+-COPY templates ./templates
+ 
+ RUN pip install --no-cache-dir .
+ 
+@@ -18,7 +17,6 @@ RUN mkdir -p /app/data
+ 
+ ENV PYTHONUNBUFFERED=1
+ ENV DATABASE_PATH=/app/data/journal.db
+-ENV TEMPLATES_DIR=/app/templates
+ ENV DATA_DIR=/app/data
+ 
+ CMD ["python", "-m", "servermall_cpq.main"]
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 0c934ca..0b468e8 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -5,5 +5,4 @@ services:
+       - .env
+     volumes:
+       - ./data:/app/data
+-      - ./templates:/app/templates
+     restart: unless-stopped
+diff --git a/docs/AUDIT_2026-09-04.md b/docs/AUDIT_2026-09-04.md
+new file mode 100644
+index 0000000..3dcec02
+--- /dev/null
++++ b/docs/AUDIT_2026-09-04.md
+@@ -0,0 +1,340 @@
++# Audit 2026-09-04 — findings, fixes applied, and what is still open
++
++Read this together with `docs/HANDOFF_CLAUDE_CODE.md`. That file describes the
++contract; this file describes what was found broken against it on commit
++`6ff8992`, which of it is fixed in this change set, and what the next engineer
++should do first. Every fix is marked in code with a comment starting
++`AUDIT 2026-09-04 #<n>` where `<n>` is the finding number below, and every fix
++has a regression test in `tests/test_audit_2026_09_regressions.py`.
++
++How the audit was run: first on a synthetic `data/1.1 Configurator.xlsx`
++(all catalog rows, fake prices), then re-run on the real workbook supplied by
++the owner (52 sheets, 5333 price observations, 1036 priced options). Everything
++below marked "real workbook" was reproduced on real prices. The full pytest
++suite and a 45-RFQ contract battery were run on the real workbook; results are
++in the "Verification" section.
++
++## Fixed in this change set
++
++### #1 Non-English text produced a silently reduced, approvable plan — FIXED
++
++`Нужен сервер Dell R760, 2 процессора Xeon 6430, 256 ГБ ОЗУ, 4 диска 1.92 ТБ SSD`
++returned `COMPLETE`, `ready=True`: DIRECT had 1 CPU, 2x32 GB, no drives, no
++deviation. The parser only knows English units and quantities; completion
++filled the rest with defaults.
++
++Fix: `new_path/service.py` — `contains_non_english()` (any Cyrillic letter)
++short-circuits `_run` with `NON_ENGLISH_INPUT`; copy in `presentation/copy.py`.
++Applies to first messages and to clarification answers.
++
++Still open: the same failure mode exists for English text whose numbers the
++parser does not understand (see #10, #11). A general "unparsed number with unit"
++guard is the right next step: compare numbers+units found by a broad regex
++against `ParseResult.extracted_fields` and ask instead of quoting when something
++material was ignored.
++
++### #2 Short clarification answers restarted the request — FIXED
++
++`looks_like_full_rfq()` returned True for `Dell R760`, `256GB`, `64 GB`,
++`Xeon Gold 6430`. `handle_clarification_answer` calls it before
++`apply_clarification`, so answering a question with the thing the bot asked for
++discarded the original RFQ. Now at least two independent specification signals
++are required (model, CPU, RAM, storage, network, GPU, workload), or a long
++workload description. `test_new_path_sticky_state_full_rfq_wins` still passes.
++
++### #3 The planner blocked the Telegram event loop for 7–19 s — FIXED
++
++Measured `process_text` on the synthetic workbook: 7.4 s, 8.1 s, 15.6 s,
++18.9 s. Every other manager, and `/stop`, waited. `_plan_request` runs the
++planner twice when the first pass is not COMPLETE, and `apply_manual_price`
++rebuilds the planner and re-reads the workbook on every confirmed price.
++
++Fix: `bot/handlers.py` runs `process_text`, `apply_clarification`,
++`apply_manual_price` and `approve` through `asyncio.to_thread`;
++`NewPathCPQService` serialises its public entry points with an `RLock`
++because it holds mutable state (`_sessions`, planner rebuild). Throughput is
++unchanged (one request at a time); responsiveness is fixed.
++
++Still open: cache the parsed workbook across planner rebuilds; make the
++planner a single pass with both pending modes.
++
++### #4 Price entry mis-parsed and poisoned the price journal — FIXED
++
++`_parse_price("1,250")` returned 1.25; `1,250.00` and `1.250,00` too. `$1 200`
++was read as SKU `1` price 200. A new RFQ typed while a price was pending
++(`Dell R760 8SFF, 2x Xeon 6430, 256GB RAM`) was read as price 7608 and offered
++for confirmation. After `yes`, `journal.set_catalog_price` stores it by display
++name, and `ManagerPurchaseDbSource` is the first price source, so the wrong
++value outranks the workbook for every later quote. There is no undo.
++
++Fix: `_normalize_number` handles thousands/decimal separators; `_parse_price`
++accepts only price-shaped messages; `_parse_sku_and_price` requires a SKU token
++containing a letter; `handle_manual_price` applies the same `looks_like_full_rfq`
++guard as the clarification handler and starts a fresh request instead.
++
++Still open: a `/prices undo` or expiry for manual prices, and `/sources`
++showing who entered a manual price and when.
++
++### #5 25GbE SFP28 could not be built anywhere — FIXED (parser) / PARTLY (catalog)
++
++`parsing/extractors/network.py` alternation `sfp\+?|sfp28` matched `sfp` inside
++`sfp28`, so media became `SFP+` and `nic_media_matches()` rejected every SFP28
++card: `... 2x 25GbE SFP28` gave `engineering_candidates=0` on all 45 platforms,
++Dell and HPE alike. Reordered to `sfp28|sfp\+?`.
++
++After the fix HPE Gen11 builds DIRECT with 25GbE (real workbook: DL380 Gen11 +
++Broadcom BCM57414 OCP3, DEGRADED because no ALTERNATIVE/VALUE has 25G). Dell
++NEW platforms still have no 25 GbE card at all: the four NEW 25G cards are HPE
++part numbers and OEM-locked in `compatibility_curation.yaml`; the only Dell
++25G row in the committed catalog (`Dell Mellanox ConnectX-4 CX422A Lx 2x25G
++SFP28 NDC`) is no longer present in the current workbook, and the generic
++`Mellanox ConnectX-4 Lx NIC (Dual-Port 25GbE SFP28)` has no form factor in its
++label. A label-regex change that would have read "2x25G" was tried and
++reverted: on the current workbook its only effect was to give the QLogic
++QLE2692 16G FC HBA a NIC speed. Fixing Dell 25GbE needs a real catalog row
++(workbook line or `component_attribute_overrides.yaml` with provenance), not
++parser work.
++
++Note that `compatibility_relations.yaml` contains 0 of 61 NICs; NIC
++compatibility is form-factor only (`nic_forms` per family in
++`compatibility_curation.yaml`) and never checks that a platform actually has a
++free OCP3/NDC slot.
++
++### #6 Missing workbook crashed the bot at startup with a traceback — FIXED (message only)
++
++`create_dispatcher` builds `NewPathCPQService` unconditionally; its price
++repository loads the workbook eagerly, so a missing/mistyped
++`SERVERMALL_EXCEL_PATH` killed the process regardless of `CPQ_NEW_PATH_ENABLED`.
++`main.run_bot` now exits with a clear message. The eager load itself is
++unchanged.
++
++Also related: CI (`.github/workflows/test.yml`) restores the workbook from a
++secret; without it `test_e2_planner`, `test_e25_new_platforms`, `test_f2_e2e`,
++`test_f1_completion_e2e`, `test_mvp_acceptance_corpus` and others fail rather
++than skip. Ruff is not run in CI.
++
++### #24 Price prompts said USD while pricing is EUR end to end — FIXED
++
++Commit `fe179f6` made every price source EUR (`ManagerPurchaseDbSource`,
++`ConfiguratorPriceSource`, `PriceRepository.base_currency`). The `/prices`
++prompts, the confirmation text and the range error still said USD, so a manager
++following the prompt typed a dollar figure that was stored and marked up as
++euro (about 8% low at today's rate) and later shown in `/sources` as
++"12.50 EUR purchase; manager-confirmed". Prompts now say EUR ex VAT.
++`FX_USD_EUR` in `.env.example`/`config.py` and handoff §5 ("treated as USD")
++are stale and should be removed or re-documented.
++
++### #27–#30 Prose RFQs lost CPUs, drives, RAM and network — FIXED (real workbook)
++
++The realistic e-mail `Hi, we need a quote for a Dell PowerEdge R760 with two
++Intel Xeon Gold 6430 processors, 512 GB of DDR5 memory, eight 1.92 TB SAS SSDs
++in RAID 10, dual 25 GbE SFP28 ports, redundant power supplies and rail kit`
++produced a COMPLETE, approvable plan with 1 CPU, 2x 1.2 TB HDD and no NIC.
++Four independent parser gaps, all fixed with regression tests:
++
++- #27 `parsing/normalize.py`: number words and `dual` before a component or a
++  number (`two Intel Xeon`, `eight 1.92 TB`, `dual 25 GbE`), `N processors`,
++  `dual-socket`, and terabyte memory (`1 TB RAM`, `1TB DDR5`, `1.5TB of
++  memory`) all parsed to nothing. `1TB RAM` silently became the 64 GB default.
++- #28 `parsing/extractors/network.py`: `2 ports 25GbE SFP28` matched two
++  patterns and produced two requirements (4 ports).
++- #29 `parsing/extractors/storage.py`: `40TB usable RAID6 SAS HDD` lost media
++  and protocol because they followed the RAID level; the planner then quoted
++  5x 15.36 TB SAS SSD (EUR 38k) instead of HDDs (EUR 12k).
++- #30 `parsing/extractors/storage.py`: a fixed 24-character look-ahead used to
++  reject a drive pack as "network-looking" whenever the next clause contained
++  `GbE`, so `8x 1.92 TB SAS SSDs, 2x 25 GbE` lost the drives. The window now
++  stops at the clause boundary.
++
++Still open: a generic "material number not consumed by any extractor" guard,
++so the next unknown phrasing asks instead of quoting defaults.
++
++### #16 Docker build was broken — FIXED
++
++`Dockerfile` copied a `templates` directory that does not exist. Removed, plus
++the matching compose volume and `TEMPLATES_DIR`. Production runs under systemd;
++the Docker path is untested beyond building.
++
++### #14 (partial) Stale user-facing copy — FIXED
++
++`/start` and `/quote` described "Exact / Alternative / REF" and PDF/DOCX/XLSX
++upload. Both now describe plain-text input and DIRECT / ALTERNATIVE / VALUE.
++
++## Found, not fixed — ordered by impact
++
++### #7 NEW quotes contain REF-labelled drives without a deviation (real workbook)
++
++In the workbook 60 of 61 `HDD / SSD` rows carry no NEW/REF marker, and the
++catalog builder records them all as `condition: REF`. A NEW DIRECT for
++`4x 1.92TB SAS SSD` therefore uses `cmp_storage_1920_0_sas_sff_4b05479fc7`
++(REF, EUR 1360 each) with no deviation, and the same row at the same price is
++the VALUE (REF) drive. Either the drives are new and the condition inference is
++wrong, or a NEW quote is shipping refurbished media undisclosed. Decide with
++the business owner and either tag conditions in the workbook or add a
++`ref_component_in_new_build` deviation in `d1/builder.py`.
++
++### #8 Dell NEW builds never carry tray caddies (real workbook, systematic)
++
++In the 45-RFQ battery every Dell NEW platform with drives (R760, R760xs,
++R7615, R7625) has 0 tray lines while HPE NEW and all REF builds have one tray
++per drive: 13 of 23 COMPLETE plans are affected. `d1/builder.py` adds trays
++only when `get_compatible_trays` returns something, and the catalog has no
++Gen15/Gen16 Dell tray with a price, so the absence is silent. Handoff §6
++describes the platform-scoped `pending:tray:...` line for *explicit* tray
++requests; the same mechanism should fire for implicit trays so the BOM is
++either complete or visibly PRICE_PENDING.
++
++### #31 DIMM population ignores sockets (real workbook)
++
++`384GB` on two CPUs is built as 3x 128 GB, `192GB` as 3x 128 GB — an odd DIMM
++count across two sockets (one CPU gets one DIMM) on R740, DL380 Gen10, R640,
++R760 and DL360 Gen11 alike. The RAM chooser minimises DIMM count and price with
++no per-socket balance or channel rule. Add: DIMM count divisible by CPU count,
++prefer equal channels per socket, and disclose when the requested total is not
++reachable in a balanced layout.
++
++### #32 Pathological planning time on simple requests (real workbook)
++
++`small server for Active Directory and file sharing, 32GB RAM, 2x 2TB SATA
++RAID1` took 408 s (with the test suite competing for CPU; other requests took
++2–70 s under the same load). T560 took 71 s, T360 53 s. Requests with few hard
++constraints enumerate hundreds of engineering candidates (`t560:
++engineering_candidates=100`) and each candidate is priced and validated. With
++#3 the bot stays responsive, but a manager still waits minutes. Profile
++`planning/planner.py` candidate generation and add an early cut-off by price
++rank per role.
++
++### #33 Coverage gaps on current mainstream platforms (real workbook)
++
++From the battery: `Dell R660` (22 priced candidates, `post_diversity=0`),
++`Dell R650`, `Dell R7525` (0 engineering candidates), `Dell T560`, `R760 +
++NVMe RAID10`, `R760 + two pools`, `2TB DDR5`, `3x drives RAID1` (should ask,
++not gap), `database 2x 6448Y + 1TB + NVMe` (DEGRADED), `virtualization 32
++cores/socket + 1TB + 10TB NVMe + 4x 25GbE` (DEGRADED). 19 of 45 realistic
++requests end in CATALOG_COVERAGE_GAP. `HPE DL385 Gen11` is answered with a
++Dell R7625 DIRECT (disclosed). `file server 100TB usable` gets an ALTERNATIVE
++of 9x 15.36 TB SSD at EUR 59k against a EUR 14k DIRECT: ALTERNATIVE has no
++price-band check relative to DIRECT.
++
++### #9 NVMe RAID10 on R760 8SFF is reported as a catalog gap
++
++`Dell R760 8SFF NEW, 2x Xeon Gold 6430, 256GB DDR5, 4x 1.92TB NVMe RAID10`:
++`fully_priced_candidates=4, post_diversity_candidates=0` → NO_VALID_OPTIONS.
++Four built and priced candidates are discarded by the diversity filter in
++`planning/planner.py`. The filter should degrade to two roles (DEGRADED), not to
++nothing. Reproduce with the probe in the audit report.
++
++### #25 The committed catalog is behind the workbook (real workbook)
++
++`test_catalog_attrs_matches_the_workbook` on the current workbook: 50 rows new
++in the workbook, 12 gone, 123 parsed differently. New rows include current CPUs
++(Gold 6438Y+ RENEW, Gold 6244, EPYC 9965) and junk cells from manager sheets
++(`???`, `Ву`, `6230.0`, `8268.0`); gone rows include the Dell 25G NDC and the
++Broadcom P2100G. Two manager sheets write a numeric `Position` (`15.0`,
++`25.0`). Regenerating with `scripts/build_catalog_attrs.py` +
++`build_normalized_catalog.py` changes three resource files by ~2000 lines and
++must be followed by `build_compatibility_relations.py` and the audit-artifact
++scripts (handoff §16); it was not done in this change set because it is a
++catalog release, not a bug fix. Until then the bot quotes from a catalog that
++does not match the price book it reads.
++
++### #26 An FC HBA is a "NIC" (real workbook)
++
++`HPE SN1100Q 2x16GB FC Pcie` is category `nic` with `speed_gb: 16`, no media.
++`... 2 ports 16Gb/s` selects it as the network adapter on DL380 Gen10, R740 and
++R640 (an HPE HBA in Dell chassis). Any media-less request with speed 11–16
++would do the same. Give FC/HBA rows their own category or exclude them from
++`get_compatible_nics`.
++
++### #10 Workload defaults produce commercially implausible CPUs
++
++`Need a virtualization server, 512GB RAM, 20TB usable SSD, 2 CPUs` → DIRECT
++2x Xeon Bronze 3408U (8C), VALUE 2x Xeon Silver 4112 (4C). The virtualization
++profile in `resources/workload_profiles.yaml` sets `default_min_cpu_cores=8`
++per server and the planner takes the cheapest CPU above the floor. Add
++per-workload cores-per-socket and minimum tier floors.
++
++### #11 Quoting with no requirements
++
++`need a server` → question → `I don't know` → full COMPLETE plan on R760xs. A
++non-answer to the only critical question should block, not proceed with
++defaults. See `clarification/policy.py` handling of an unrecognised answer.
++
++### #12 Production host, root user and password SSH in a public repo
++
++`deploy/deploy.py:21-22` hard-codes `HOST`, `USER = "root"`, password from
++`DEPLOY_SSH_PASSWORD`, `paramiko.AutoAddPolicy()`; same in 11 other scripts
++under `deploy/` and `scripts/`. No token or password was found in the tree or
++in the last 50 commits, but the handoff says credentials were shared in the
++project history. Move host/user to env, switch to key auth, pin the host key,
++disable root password login, rotate the password.
++
++### #13 FSM state is in-memory
++
++`Dispatcher()` uses MemoryStorage; `request_id`, `pending_prices` and price
++confirmations vanish on every restart/deploy. New-path sessions are persisted
++in the journal, so a SQLite/Redis FSM storage (or re-attaching the last draft
++session per chat on `/prices` and `/approve`) would close the gap.
++
++### #14 Production flag defaults off; README describes the legacy product
++
++`CPQ_NEW_PATH_ENABLED` defaults to false in `config.py` and `.env.example`
++while the handoff calls the new path production. A fresh environment or a lost
++`.env` silently runs `simple/` (files, OCR, different logic). Flip the default
++or refuse to start without an explicit value; rewrite README.
++
++### #15 `APP_ENV` defaults to development, which opens the bot to everyone
++
++`bot/access.py`: an empty allowlist admits all users unless `APP_ENV` is
++`production`/`prod`. `/sources` exposes purchase prices. Consider making the
++allowlist mandatory whenever a bot token is set, and not replying to
++unauthorised users at all.
++
++### #17–#23 Smaller items
++
++- `_safe_process` sends raw exception text to the chat.
++- `FX_USD_EUR=0.92` is a fixed env value with no date; manual prices are USD,
++  display is EUR.
++- Catalog labels contain Cyrillic letters (`Caсhe` in Xeon Silver 4112) and
++  prices (`... 1440eur`); `T160` is categorised as an accessory from an
++  `Extra 1` row, which is why the planner sees no T160.
++- CI runs only on `main`, no Ruff, full suite ≈ 3 h.
++- `tests/test_channel_rfqs.py:21` contains a real-looking email at a real
++  domain; confirm it is fictitious.
++- `simple/`, `shadow/`, `extraction/`, `models/` and the pdf/docx/ocr
++  dependencies are legacy-only.
++- Logs carry no `user_id`/`request_id` correlation.
++
++## Verification of this change set (real workbook)
++
++- `ruff check src tests scripts`: clean.
++- `tests/test_audit_2026_09_regressions.py`: 58 tests, all pass, no workbook
++  needed (parser, price parsing, guards, and aiogram handler flows through a
++  real FSM).
++- Parser suites on the patched code (`test_f2_parser`, `test_f2_completion`,
++  `test_f25_real_rfq`, `test_f3_clarification`, `test_f1_completion`,
++  `test_f16_reused_hardware`): 564 pass.
++- Full suite with the real workbook, `pytest tests -n 4`: **1854 passed,
++  14 failed in 50 min**. The same 13 tests fail identically on the unpatched
++  `6ff8992` with the same workbook (re-run in a separate worktree), so none is a
++  regression of this change set; the 14th (`test_f35_shadow::
++  test_shadow_not_hooked_on_photo_or_documents`) failed only because
++  `handlers.py` was being edited while the suite ran and passes on both trees.
++  The 13 pre-existing failures:
++  - `test_catalog_attrs` (2): the committed catalog is behind the workbook (#25);
++  - `test_commercial_rfq_acceptance[live-t360-raid1-ssd]`: known open, handoff §10.2;
++  - `test_commercial_rfq_acceptance[named-t360-192|256]`,
++    `test_unified_engine[wa_t360|call_perc_not_gpu]`, `test_simple_config` (2),
++    `test_e15_price_coverage::test_priced_ram_layout_resolves_128gb_module_blocker`:
++    price/catalog outcomes that moved with the newer workbook; re-check after the
++    catalog is regenerated;
++  - `test_e25_new_platforms`, `test_e26_dell_new_coverage`,
++    `test_compatibility_audit_artifact`: generated audit artifacts are no longer
++    byte-identical to the current workbook/code; regenerate with their scripts.
++- 45-RFQ contract battery (real workbook, before the parser fixes): 23
++  COMPLETE, 10 NO_VALID_OPTIONS, 9 DEGRADED, 3 blocked as unsupported. The
++  probe script and results are in the audit report outside this repository;
++  the systematic findings are #8, #31, #32, #33 above.
++- Manual price lifecycle on a real SQLite journal (R760 + Tray Caddy):
++  PRICE_PENDING → `/approve` blocked → `0W4CN 12.50` → COMPLETE → repeated RFQ
++  reuses the price. Works.
+diff --git a/src/servermall_cpq/bot/handlers.py b/src/servermall_cpq/bot/handlers.py
+index d31784b..fde4dc6 100644
+--- a/src/servermall_cpq/bot/handlers.py
++++ b/src/servermall_cpq/bot/handlers.py
+@@ -2,6 +2,7 @@
+ 
+ from __future__ import annotations
+ 
++import asyncio
+ import logging
+ import re
+ import time
+@@ -39,26 +40,67 @@ class ClarifyStates(StatesGroup):
+     waiting_for_approval = State()
+ 
+ 
+-def _parse_price(text: str) -> float | None:
+-    match = re.search(r"\d+(?:[.,]\d+)?", text.replace(" ", ""))
+-    if match is None:
++# AUDIT 2026-09-04 #4: price parsing. The old helpers replaced "," with "." and
++# grabbed the first number anywhere in the message, so "1,250" became 1.25 and a
++# new RFQ typed while a price was pending ("Dell R760 ... 256GB RAM") became a
++# 7608 purchase price. Confirmed prices go into the manager price journal,
++# which outranks the configurator workbook and has no undo, so a mis-parse
++# silently corrupts every later quote. Only price-shaped messages are accepted.
++_CURRENCY_NOISE = re.compile(r"(?i)(?:usd|eur|\$|€|per\s+unit|each)")
++_NUMBER_TOKEN = re.compile(r"^[+-]?\d[\d .,]*$")
++
++
++def _normalize_number(token: str) -> float | None:
++    """Parse 1250 / 1,250 / 1 250 / 1,250.00 / 1.250,00 / 12.50 / 12,50."""
++    token = token.strip().replace(" ", "")
++    if not token or not _NUMBER_TOKEN.match(token):
++        return None
++    if "," in token and "." in token:
++        decimal_sep = "," if token.rfind(",") > token.rfind(".") else "."
++        thousands_sep = "." if decimal_sep == "," else ","
++        token = token.replace(thousands_sep, "").replace(decimal_sep, ".")
++    elif "," in token:
++        head, _, tail = token.rpartition(",")
++        # "1,250" / "12,345,678" are thousands; "12,50" is a decimal.
++        if len(tail) == 3 and head.replace(",", "").isdigit():
++            token = token.replace(",", "")
++        elif token.count(",") == 1:
++            token = f"{head}.{tail}"
++        else:
++            return None
++    elif token.count(".") > 1:
++        head, _, tail = token.rpartition(".")
++        if len(tail) == 3 and head.replace(".", "").isdigit():
++            token = token.replace(".", "")
++        else:
++            return None
++    try:
++        value = float(token)
++    except ValueError:
+         return None
+-    value = float(match.group(0).replace(",", "."))
+     return value if value > 0 else None
+ 
+ 
++def _parse_price(text: str) -> float | None:
++    """Accept only a message that is a price, optionally with a currency marker."""
++    cleaned = _CURRENCY_NOISE.sub(" ", text or "").strip()
++    return _normalize_number(cleaned)
++
++
+ def _parse_sku_and_price(text: str) -> tuple[str | None, float | None]:
+-    stripped = text.strip()
++    """Accept "<SKU> <price>" where SKU is one token containing a letter."""
++    stripped = _CURRENCY_NOISE.sub(" ", text or "").strip()
+     match = re.search(
+-        r"^(?P<sku>.+?)\s+(?P<price>\d+(?:[.,]\d{1,2})?)\s*(?:usd)?$",
++        r"^(?:(?:sku|pn|part(?:\s*number)?)\s*[:=]?\s*)?"
++        r"(?P<sku>[A-Za-z0-9][A-Za-z0-9._/-]*[A-Za-z][A-Za-z0-9._/-]*|[A-Za-z][A-Za-z0-9._/-]*)"
++        r"\s+(?P<price>[\d][\d .,]*)$",
+         stripped,
+         flags=re.I,
+     )
+     if match:
+-        sku = match.group("sku").strip(" ,;$")
+-        sku = re.sub(r"^(?:sku|pn|part(?:\s*number)?)\s*[:=]?\s*", "", sku, flags=re.I)
+-        price = float(match.group("price").replace(",", "."))
+-        if sku and price > 0:
++        sku = match.group("sku").strip(" ,;")
++        price = _normalize_number(match.group("price"))
++        if sku and price:
+             return sku, price
+     return None, _parse_price(text)
+ 
+@@ -160,7 +202,7 @@ async def _do_start(message: Message, state: FSMContext) -> None:
+         "Send an English server request as plain text.\n\n"
+         "Example:\n"
+         "Dell R770 16SFF, 2x Intel Xeon 6787P, 256GB DDR5 RAM\n\n"
+-        "I reply with Exact, Alternative and REF configurations, with prices.",
++        "I reply with DIRECT, ALTERNATIVE and VALUE proposals, with prices.",
+     )
+ 
+ 
+@@ -235,7 +277,9 @@ async def _ask_next_price(
+     await _reply(
+         message,
+         f"Please confirm the purchase cost of this critical item:\n{component}\n\n"
+-        "Enter the unit cost in USD, for example: 180.",
++        # AUDIT 2026-09-04 #24: pricing is EUR end to end (commit fe179f6); the
++        # prompts still said USD, so a dollar figure was stored as euro.
++        "Enter the unit purchase cost in EUR ex VAT, for example: 180.",
+     )
+ 
+ 
+@@ -292,7 +336,7 @@ async def cmd_approve(
+ 
+     async def _run() -> None:
+         if settings.cpq_new_path_enabled:
+-            rendered = new_path.approve(request_id)
++            rendered = await asyncio.to_thread(new_path.approve, request_id)
+         else:
+             rendered = engine.approve(request_id)
+         await state.clear()
+@@ -460,6 +504,28 @@ async def handle_manual_price(
+         await _reply(message, "The session expired. Send the request again.")
+         return
+ 
++    # AUDIT 2026-09-04 #4: a new RFQ typed while a price is pending must not be
++    # read as a price (same guard as handle_clarification_answer).
++    if new_path.looks_like_full_rfq(message.text):
++        await state.clear()
++        await _reply(
++            message,
++            "That looks like a new customer request, so the pending price was left "
++            "unconfirmed. Building a new proposal...",
++        )
++
++        async def _restart() -> None:
++            if settings.cpq_new_path_enabled:
++                new_path.close(request_id)
++                result = await asyncio.to_thread(new_path.process_text, message.text)
++                await _handle_new_path_result(message, state, result)
++            else:
++                result = await engine.ingest_text(message.text)
++                await _handle_engine_result(message, state, result)
++
++        await _safe_process(message, state, _restart())
++        return
++
+     confirmation = data.get("pending_price_confirmation")
+     answer = message.text.strip().casefold()
+     sku = None
+@@ -478,7 +544,7 @@ async def handle_manual_price(
+         if price is None:
+             await _reply(
+                 message,
+-                "The price was not recognized. Send a number in USD, for example 180, or /skip.",
++                "The price was not recognized. Send a number in EUR, for example 180, or /skip.",
+             )
+             return
+         component = _price_prompt_name(pending[0])
+@@ -494,15 +560,15 @@ async def handle_manual_price(
+             message,
+             f"Check the manually entered price:\n{component}\n"
+             f"{sku_line}"
+-            f"Purchase cost: {price:.2f} USD per unit.\n\n"
++            f"Purchase cost: {price:.2f} EUR per unit (ex VAT).\n\n"
+             "Reply 'yes' to confirm, or send the corrected number.",
+         )
+         return
+ 
+     async def _run() -> None:
+         if settings.cpq_new_path_enabled:
+-            result = new_path.apply_manual_price(
+-                request_id, pending[0], price, sku=sku
++            result = await asyncio.to_thread(
++                new_path.apply_manual_price, request_id, pending[0], price, sku=sku
+             )
+             if result.question or not result.rendered_html:
+                 await _handle_new_path_result(message, state, result)
+@@ -558,7 +624,7 @@ async def handle_clarification_answer(
+             if settings.cpq_new_path_enabled:
+                 if old_id:
+                     new_path.close(old_id)
+-                result = new_path.process_text(message.text)
++                result = await asyncio.to_thread(new_path.process_text, message.text)
+                 await _handle_new_path_result(message, state, result)
+             else:
+                 result = await engine.ingest_text(message.text)
+@@ -571,7 +637,9 @@ async def handle_clarification_answer(
+                 await state.clear()
+                 await _reply(message, "The session expired. Send the request again.")
+                 return
+-            result = new_path.apply_clarification(request_id, message.text)
++            result = await asyncio.to_thread(
++                new_path.apply_clarification, request_id, message.text
++            )
+             await _handle_new_path_result(message, state, result)
+             return
+         await _apply_clarification(message, state, engine, message.text)
+@@ -583,8 +651,8 @@ async def handle_clarification_answer(
+ async def cmd_quote(message: Message) -> None:
+     await _reply(
+         message,
+-        "Priced CPQ mode: upload the request as PDF, DOCX, or XLSX. "
+-        "Plain-text messages reply with Exact / Alternative / REF tables.",
++        "Send the customer request as plain English text. "
++        "I reply with DIRECT, ALTERNATIVE and VALUE proposals.",
+     )
+ 
+ 
+@@ -613,7 +681,9 @@ async def handle_text(
+         if settings.cpq_new_path_enabled:
+             if old_id:
+                 new_path.close(old_id)
+-            result = new_path.process_text(message.text)
++            # AUDIT 2026-09-04 #3: the planner takes 7-19 s; run it off the
++            # event loop so the bot keeps answering other managers and /stop.
++            result = await asyncio.to_thread(new_path.process_text, message.text)
+             await _handle_new_path_result(message, state, result)
+             return
+         started = time.perf_counter()
+diff --git a/src/servermall_cpq/main.py b/src/servermall_cpq/main.py
+index 94a7e5d..8e0ff51 100644
+--- a/src/servermall_cpq/main.py
++++ b/src/servermall_cpq/main.py
+@@ -20,6 +20,16 @@ async def run_bot() -> None:
+ 
+     if not settings.telegram_bot_token:
+         raise SystemExit("TELEGRAM_BOT_TOKEN is not set. Copy .env.example to .env and configure it.")
++    # AUDIT 2026-09-04 #6: create_dispatcher builds NewPathCPQService, whose
++    # price repository opens the configurator workbook eagerly; a missing file
++    # used to crash the process with an openpyxl traceback regardless of
++    # CPQ_NEW_PATH_ENABLED. Fail early with an actionable message instead.
++    excel = settings.resolve_excel_path()
++    if excel is None or not excel.exists():
++        raise SystemExit(
++            "Configurator workbook not found. Set SERVERMALL_EXCEL_PATH in .env or place "
++            f"the file at {settings.data_dir / '1.1 Configurator.xlsx'}."
++        )
+ 
+     engine = UnifiedCPQEngine(settings)
+     shadow = build_shadow_scheduler(settings)
+diff --git a/src/servermall_cpq/new_path/service.py b/src/servermall_cpq/new_path/service.py
+index 3b26728..92ac591 100644
+--- a/src/servermall_cpq/new_path/service.py
++++ b/src/servermall_cpq/new_path/service.py
+@@ -7,6 +7,8 @@ from datetime import datetime, timezone
+ from decimal import Decimal
+ import json
+ from pathlib import Path
++import re
++import threading
+ from uuid import uuid4
+ 
+ from servermall_cpq.catalog import load_normalized_catalog
+@@ -50,6 +52,18 @@ from servermall_cpq.storage import Journal, normalize_price_component
+ 
+ ENGINE_NAME = "new_path"
+ 
++# AUDIT 2026-09-04 #1: the parser only understands English units/quantities
++# ("2x", "GB", "TB"). Cyrillic text such as "256 ГБ ОЗУ, 4 диска 1.92 ТБ" parsed
++# to nothing and completion filled the gaps with defaults, producing a COMPLETE,
++# approvable plan with 1 CPU / 64 GB / no drives. Any Cyrillic letter is treated
++# as non-English input and the request is refused with NON_ENGLISH_INPUT.
++_CYRILLIC = re.compile(r"[\u0400-\u04FF]")
++NON_ENGLISH_INPUT = "NON_ENGLISH_INPUT"
++
++
++def contains_non_english(text: str) -> bool:
++    return _CYRILLIC.search(text or "") is not None
++
+ 
+ def _engine_version() -> str:
+     path = Path(__file__).resolve().parents[3] / "BUILD_INFO.json"
+@@ -107,12 +121,23 @@ class NewPathCPQService:
+         self._injected_planner = planner is not None
+         self.planner = planner or self._build_planner()
+         self._sessions: dict[str, dict] = {}
++        # AUDIT 2026-09-04 #3: the planner is CPU-bound (7-19 s per request) and
++        # the Telegram handlers now run it via asyncio.to_thread. The service
++        # keeps mutable state (_sessions, planner rebuilt in apply_manual_price),
++        # so public entry points are serialised with this lock; the bot stays
++        # responsive, requests are processed one at a time.
++        self._lock = threading.RLock()
+ 
+     def process_text(self, text: str) -> NewPathResult:
+-        request_id = self._new_request_id(text)
+-        return self._run(request_id, text, asked=(), round_count=0)
++        with self._lock:
++            request_id = self._new_request_id(text)
++            return self._run(request_id, text, asked=(), round_count=0)
+ 
+     def apply_clarification(self, request_id: str, answer: str) -> NewPathResult:
++        with self._lock:
++            return self._apply_clarification(request_id, answer)
++
++    def _apply_clarification(self, request_id: str, answer: str) -> NewPathResult:
+         session = self._get_session(request_id)
+         if session is None:
+             return NewPathResult(
+@@ -136,15 +161,37 @@ class NewPathCPQService:
+         )
+ 
+     def looks_like_full_rfq(self, text: str) -> bool:
+-        """True when a message should start a fresh request, not answer clarification."""
++        """True when a message should start a fresh request, not answer clarification.
++
++        AUDIT 2026-09-04 #2: a single parsed field used to be enough, so short
++        clarification answers such as "Dell R760", "256GB" or "Xeon Gold 6430"
++        were treated as a brand-new RFQ and the original request text was
++        discarded. A fresh request now needs at least two independent
++        specification signals (model, CPU, RAM, storage, network, GPU,
++        workload) or a long workload description.
++        """
+         parsed = self.parser.parse(text)
+-        if any(extra.kind == "unsupported_architecture" for extra in parsed.request.extras):
++        request = parsed.request
++        if any(extra.kind == "unsupported_architecture" for extra in request.extras):
+             return True
+-        if parsed.request.model.name or parsed.request.model.platform_id:
++        signals = 0
++        if request.model.name or request.model.platform_id:
++            signals += 1
++        if request.cpu.explicit_model or request.cpu.cpu_count or request.cpu.min_cores_total:
++            signals += 1
++        if request.ram.min_gb:
++            signals += 1
++        if request.storage:
++            signals += 1
++        if request.network:
++            signals += 1
++        if request.gpu.required or request.gpu.explicit_model:
++            signals += 1
++        if request.workloads:
++            signals += 1
++        if signals >= 2:
+             return True
+-        if parsed.request.cpu.explicit_model or parsed.request.ram.min_gb:
+-            return True
+-        return len(text.strip()) >= 80 and bool(parsed.request.workloads)
++        return len(text.strip()) >= 80 and bool(request.workloads)
+ 
+     def sources(self, request_id: str) -> str:
+         session = self._require_session(request_id)
+@@ -191,12 +238,23 @@ class NewPathCPQService:
+         unit_cost: float,
+         *,
+         sku: str | None = None,
++    ) -> NewPathResult:
++        with self._lock:
++            return self._apply_manual_price(request_id, component, unit_cost, sku=sku)
++
++    def _apply_manual_price(
++        self,
++        request_id: str,
++        component: str,
++        unit_cost: float,
++        *,
++        sku: str | None = None,
+     ) -> NewPathResult:
+         if not self.journal:
+             raise ValueError("Purchase prices require a persistent journal.")
+         amount = Decimal(str(unit_cost))
+         if amount <= 0 or amount > Decimal("1000000"):
+-            raise ValueError("Purchase price must be between 0 and 1,000,000 USD per unit")
++            raise ValueError("Purchase price must be between 0 and 1,000,000 EUR per unit")
+         session = self._require_session(request_id)
+         display, component_id = self._resolve_price_target(session, component)
+         if component_id and is_pending_tray_id(component_id):
+@@ -243,6 +301,10 @@ class NewPathCPQService:
+         )
+ 
+     def approve(self, request_id: str) -> str:
++        with self._lock:
++            return self._approve(request_id)
++
++    def _approve(self, request_id: str) -> str:
+         session = self._require_session(request_id)
+         plan = self._plan_from_session(session)
+         if plan is None:
+@@ -289,6 +351,26 @@ class NewPathCPQService:
+         round_count: int,
+         source_text: str | None = None,
+     ) -> NewPathResult:
++        if contains_non_english(text):
++            rendered = human_reason(NON_ENGLISH_INPUT)
++            self._write_session(
++                request_id,
++                {
++                    "source_text": source_text or text,
++                    "asked": list(asked),
++                    "round": round_count,
++                    "clarification": {"reason_code": NON_ENGLISH_INPUT},
++                    "status": "blocked",
++                    "rendered_html": rendered,
++                    "engine_version": self.engine_version,
++                    "created_at": datetime.now(timezone.utc).isoformat(),
++                },
++            )
++            return NewPathResult(
++                request_id=request_id,
++                unsupported_reason=NON_ENGLISH_INPUT,
++                rendered_html=rendered,
++            )
+         parsed = self.parser.parse(text)
+         completed = self.completer.complete(parsed.request)
+         decision = self.clarification.evaluate(
+diff --git a/src/servermall_cpq/parsing/extractors/network.py b/src/servermall_cpq/parsing/extractors/network.py
+index 3083d8f..c2a5fe6 100644
+--- a/src/servermall_cpq/parsing/extractors/network.py
++++ b/src/servermall_cpq/parsing/extractors/network.py
+@@ -9,7 +9,11 @@ from servermall_cpq.parsing.extractors import Hit
+ _PORT = re.compile(
+     r"(?i)(?P<qty>\d+)\s*(?:x|port|ports)\s*"
+     r"(?P<speed>\d+)\s*(?:GbE|Gb/s|Gbit|gigabit|GB\s+Base-?T)"
+-    r"(?:\s+(?P<media>rj-?45|sfp\+?|sfp28|base-t))?"
++    # AUDIT 2026-09-04: "sfp28" must precede "sfp\+?" — regex alternation is
++    # ordered, and "sfp\+?" used to swallow the "sfp" of "sfp28", so every
++    # 25GbE SFP28 request was normalised to SFP+ and rejected by
++    # nic_media_matches() on all platforms. See docs/AUDIT_2026-09-04.md #5.
++    r"(?:\s+(?P<media>rj-?45|sfp28|sfp\+?|base-t))?"
+     r"(?:\s+(?P<where>integrated|onboard|pci-?e))?"
+ )
+ _PORT_ALT = re.compile(
+@@ -24,6 +28,11 @@ _FOUR = re.compile(r"(?i)\bfour\s+(?P<speed>\d+)\s*(?:GbE|GB)\s+ports?")
+ def extract_network(text: str) -> list[Hit]:
+     hits: list[Hit] = []
+     seen: set[tuple] = set()
++    # AUDIT 2026-09-04 #28: "2 ports 25GbE SFP28" matched both _PORT (with media)
++    # and _PORT_ALT (without), producing two requirements and doubling the port
++    # count. Collect all matches, then keep one per (ports, speed), preferring
++    # the match that carries a medium.
++    found: dict[tuple[int, int], tuple[str | None, re.Match]] = {}
+     for match in (*_PORT.finditer(text), *_PORT_ALT.finditer(text), *_PORT_HYPHEN.finditer(text)):
+         qty = int(match.group("qty"))
+         speed = int(match.group("speed"))
+@@ -36,6 +45,10 @@ def extract_network(text: str) -> list[Hit]:
+                 media_norm = "SFP28"
+             elif folded.startswith("sfp"):
+                 media_norm = "SFP+"
++        existing = found.get((qty, speed))
++        if existing is None or (existing[0] is None and media_norm is not None):
++            found[(qty, speed)] = (media_norm, match)
++    for (qty, speed), (media_norm, match) in found.items():
+         key = (qty, speed, media_norm)
+         if key in seen:
+             continue
+diff --git a/src/servermall_cpq/parsing/extractors/storage.py b/src/servermall_cpq/parsing/extractors/storage.py
+index 2246370..b17ce74 100644
+--- a/src/servermall_cpq/parsing/extractors/storage.py
++++ b/src/servermall_cpq/parsing/extractors/storage.py
+@@ -169,7 +169,14 @@ def extract_storage(text: str) -> list[Hit]:
+             *_DRIVE_PACK.finditer(text),
+             *_DRIVE_PACK_ALT.finditer(text),
+         ):
+-            window = candidate.group(0) + text[candidate.end() : candidate.end() + 24]
++            # AUDIT 2026-09-04 #30: the guard below rejects NIC-looking packs
++            # ("2x 25 GbE"), but a fixed 24-char window reached into the next
++            # clause, so "8x 1.92 TB SAS SSDs, 2x 25 GbE" lost the drives.
++            # Stop the window at the clause boundary.
++            trailing = re.split(
++                r"[,;\n]|\.\s|\s+and\s+", text[candidate.end() : candidate.end() + 24], maxsplit=1
++            )[0]
++            window = candidate.group(0) + trailing
+             if re.search(r"(?i)\b(?:ddr|rdimm|lrdimm|udimm|gbe|base-t|rj-?45|watt|\bw\b)\b", window):
+                 continue
+             if re.search(r"(?i)^\s*DDR", text[candidate.end() : candidate.end() + 8]):
+@@ -272,8 +279,22 @@ def _emit_usable(hits: list[Hit], usable: re.Match, text: str, prefix: str) -> N
+         re.search(r"(?i)\bnvme\b", usable.group(0))
+     )
+     media = next((token for token in tokens if token and token.lower() != "nvme"), None)
++    # AUDIT 2026-09-04 #29: "40TB usable RAID6 SAS HDD" carried the medium and
++    # protocol after the RAID level, outside the match, so the pool lost both and
++    # the planner quoted 15.36 TB SSDs at three times the HDD price. Look in the
++    # rest of the same clause (up to the next comma / line break).
++    clause = re.split(r"[,;\n.]", text[usable.end() : usable.end() + 48], maxsplit=1)[0]
++    if not nvme and not media:
++        found = re.search(r"(?i)\b(ssd|hdd|nvme)\b", clause)
++        if found:
++            media = found.group(1)
++            nvme = media.lower() == "nvme"
+     if nvme:
+         hits.append(Hit(f"{prefix}.interface", "NVME", usable.group(0)))
+         hits.append(Hit(f"{prefix}.media", "SSD", usable.group(0)))
+     elif media:
+         hits.append(Hit(f"{prefix}.media", media.upper(), usable.group(0)))
++    if not nvme:
++        proto = re.search(r"(?i)\b(sas|sata)\b", usable.group(0) + " " + clause)
++        if proto:
++            hits.append(Hit(f"{prefix}.interface", proto.group(1).upper(), proto.group(0)))
+diff --git a/src/servermall_cpq/parsing/normalize.py b/src/servermall_cpq/parsing/normalize.py
+index d5d2c4f..6a899e4 100644
+--- a/src/servermall_cpq/parsing/normalize.py
++++ b/src/servermall_cpq/parsing/normalize.py
+@@ -75,6 +75,32 @@ def normalize_text(text: str) -> str:
+         text,
+         flags=re.I,
+     )
++    # AUDIT 2026-09-04 #27: prose RFQs. "two Intel Xeon Gold 6430 processors",
++    # "eight 1.92 TB SAS SSDs", "dual 25 GbE SFP28 ports", "2 processors",
++    # "dual-socket" and "1 TB RAM" all parsed to nothing, so completion filled
++    # them with defaults (1 CPU, 64 GB, 2 drives) and the plan was COMPLETE.
++    text = re.sub(
++        r"\b(one|two|three|four|five|six|eight|ten|twelve|sixteen|dual)\s+"
++        r"(?=\d|intel\b|amd\b|xeon\b|epyc\b|cpus?\b|processors?\b)",
++        lambda match: (_WORD_QTY.get(match.group(1).lower(), "2") if match.group(1).lower() != "dual" else "2") + "x ",
++        text,
++        flags=re.I,
++    )
++    text = re.sub(r"(?i)\b(?:dual|two|2)[- ]sockets?\b", "2x CPU", text)
++    text = re.sub(
++        r"(?i)\b(\d+)\s+processors?\s+(?=intel\b|amd\b|xeon\b|epyc\b|gold\b|silver\b|platinum\b|bronze\b|e-?\d)",
++        r"\1x ",
++        text,
++    )
++    # Only a small count: "Gold 6430 processors" must not become "6430x CPU".
++    text = re.sub(r"(?i)\b(\d{1,2})\s+processors?\b", r"\1x CPU", text)
++    text = re.sub(
++        r"(?i)\b(\d+(?:\.\d+)?)\s*TB(?=\s+(?:of\s+)?(?:ram|memory|ddr-?\s*[345]\b))",
++        lambda match: f"{int(round(float(match.group(1)) * 1024))}GB",
++        text,
++    )
++    text = re.sub(r"(?i)\b(\d+)GB\s+(DDR-?\s*[345])\b(?!\s*(?:ram|memory|rdimm|lrdimm|udimm))", r"\1GB \2 RAM", text)
++    text = re.sub(r"(?i)\b(\d+)\s*GB\s+of\s+(?=ram\b|memory\b|ddr)", r"\1GB ", text)
+     text = drop_fields_marked_as_none(text)
+     text = re.sub(r"\s+", " ", text)
+     return text.strip()
+diff --git a/src/servermall_cpq/presentation/copy.py b/src/servermall_cpq/presentation/copy.py
+index e6c27d9..a32fdca 100644
+--- a/src/servermall_cpq/presentation/copy.py
++++ b/src/servermall_cpq/presentation/copy.py
+@@ -37,6 +37,12 @@ FAILURE_COPY: dict[str, str] = {
+     "COMPONENTS_ONLY_REQUEST": "A components-only list is not a complete server request.",
+     "WORKLOAD_UNSUPPORTED": "That workload is not supported on the current catalog path.",
+     "BLOCKED_UNRESOLVED": "This request cannot be completed safely from the given details.",
++    # AUDIT 2026-09-04 #1: non-English text used to yield a silently reduced,
++    # approvable plan (defaults instead of the requested CPU/RAM/drives).
++    "NON_ENGLISH_INPUT": (
++        "The request contains non-English text, which the parser cannot read "
++        "safely. Please send the request in English."
++    ),
+ }
+ 
+ ROLE_FIT: dict[CommercialRoleReason, str] = {
+diff --git a/tests/test_audit_2026_09_regressions.py b/tests/test_audit_2026_09_regressions.py
+new file mode 100644
+index 0000000..828820e
+--- /dev/null
++++ b/tests/test_audit_2026_09_regressions.py
+@@ -0,0 +1,341 @@
++"""Regressions for the 2026-09-04 audit (docs/AUDIT_2026-09-04.md).
++
++None of these tests need the configurator workbook: the service is built with a
++dummy injected planner because every guarded path returns before planning.
++"""
++
++from __future__ import annotations
++
++import pytest
++
++from servermall_cpq.bot.handlers import _normalize_number, _parse_price, _parse_sku_and_price
++from servermall_cpq.new_path.service import (
++    NON_ENGLISH_INPUT,
++    NewPathCPQService,
++    contains_non_english,
++)
++from servermall_cpq.parsing import TextRequestParser
++
++
++class _NoPlanner:
++    def plan(self, *args, **kwargs):  # pragma: no cover - must never be reached
++        raise AssertionError("planner must not run for guarded inputs")
++
++
++@pytest.fixture(scope="module")
++def service() -> NewPathCPQService:
++    return NewPathCPQService(planner=_NoPlanner())
++
++
++# --- #5 SFP28 media -----------------------------------------------------------
++
++
++@pytest.mark.parametrize(
++    ("text", "media"),
++    [
++        ("2x 25GbE SFP28", "SFP28"),
++        ("2 x 25GbE SFP28, 128GB RAM", "SFP28"),
++        ("2x 10GbE SFP+", "SFP+"),
++        ("4x 1GbE RJ45", "RJ45"),
++    ],
++)
++def test_network_media_keeps_sfp28_distinct(text: str, media: str) -> None:
++    request = TextRequestParser().parse(text).request
++    assert request.network, text
++    assert request.network[0].media == media
++
++
++# --- #2 clarification answers are not new RFQs ------------------------------
++
++
++@pytest.mark.parametrize("answer", ["Dell R760", "256GB", "64 GB", "Xeon Gold 6430", "HPE"])
++def test_short_clarification_answers_are_not_full_rfqs(
++    service: NewPathCPQService, answer: str
++) -> None:
++    assert not service.looks_like_full_rfq(answer)
++
++
++@pytest.mark.parametrize(
++    "text",
++    [
++        "Dell T360 4LFF Condition New CPU Intel Xeon E-2488 RAM 64GB DDR5",
++        "Dell R760 8SFF NEW, 2x Xeon Gold 6430, 256GB DDR5 RAM",
++        "HPE DL380 Gen11, 4x 1.92TB SAS SSD RAID10",
++    ],
++)
++def test_real_rfqs_still_start_a_fresh_request(service: NewPathCPQService, text: str) -> None:
++    assert service.looks_like_full_rfq(text)
++
++
++# --- #4 price parsing --------------------------------------------------------
++
++
++@pytest.mark.parametrize(
++    ("text", "expected"),
++    [
++        ("1250", 1250.0),
++        ("1,250", 1250.0),
++        ("1 250", 1250.0),
++        ("1,250.00", 1250.0),
++        ("1.250,00", 1250.0),
++        ("12.50", 12.5),
++        ("12,50", 12.5),
++        ("$1 200", 1200.0),
++        ("1200 USD", 1200.0),
++        ("USD 180", 180.0),
++        ("180", 180.0),
++        ("Dell R760 8SFF, 2x Xeon 6430, 256GB RAM", None),
++        ("about 180", None),
++        ("0", None),
++    ],
++)
++def test_parse_price_only_accepts_price_shaped_messages(text: str, expected) -> None:
++    assert _parse_price(text) == expected
++
++
++@pytest.mark.parametrize(
++    ("text", "expected"),
++    [
++        ("0W4CN 12.50", ("0W4CN", 12.5)),
++        ("PN: 0W4CN 12,50", ("0W4CN", 12.5)),
++        ("P10106-B21 1,250", ("P10106-B21", 1250.0)),
++        ("$1 200", (None, 1200.0)),
++        ("USD 180", (None, 180.0)),
++        ("Dell R760 8SFF, 2x Xeon 6430, 256GB RAM", (None, None)),
++    ],
++)
++def test_parse_sku_and_price(text: str, expected) -> None:
++    assert _parse_sku_and_price(text) == expected
++
++
++def test_normalize_number_rejects_ambiguous_separators() -> None:
++    assert _normalize_number("1,2,3") is None
++    assert _normalize_number("1.2.3") is None
++
++
++# --- #1 non-English input ----------------------------------------------------
++
++
++RUSSIAN_RFQ = "Нужен сервер Dell R760, 2 процессора Xeon 6430, 256 ГБ ОЗУ, 4 диска 1.92 ТБ SSD"
++
++
++def test_contains_non_english() -> None:
++    assert contains_non_english(RUSSIAN_RFQ)
++    assert not contains_non_english("Dell R760, 2x Xeon 6430, 256GB RAM")
++
++
++def test_russian_rfq_is_refused_instead_of_silently_reduced(service: NewPathCPQService) -> None:
++    result = service.process_text(RUSSIAN_RFQ)
++    assert result.unsupported_reason == NON_ENGLISH_INPUT
++    assert result.plan is None
++    assert not result.ready
++    assert "English" in (result.rendered_html or "")
++
++
++def test_russian_clarification_answer_is_refused(service: NewPathCPQService) -> None:
++    first = service.process_text("need a server")
++    assert first.question
++    second = service.apply_clarification(first.request_id, "для виртуализации")
++    assert second.unsupported_reason == NON_ENGLISH_INPUT
++
++
++# --- handler level: #2 / #3 / #4 through the real aiogram FSM ----------------
++
++from aiogram.fsm.context import FSMContext  # noqa: E402
++from aiogram.fsm.storage.base import StorageKey  # noqa: E402
++from aiogram.fsm.storage.memory import MemoryStorage  # noqa: E402
++
++from servermall_cpq.bot import handlers  # noqa: E402
++from servermall_cpq.bot.handlers import ClarifyStates  # noqa: E402
++from servermall_cpq.config import Settings  # noqa: E402
++from servermall_cpq.new_path.service import NewPathResult  # noqa: E402
++
++
++class _FakeChat:
++    id = 1
++
++
++class _FakeMessage:
++    def __init__(self, text: str) -> None:
++        self.text = text
++        self.chat = _FakeChat()
++        self.message_id = 1
++        self.replies: list[str] = []
++
++    async def answer(self, text: str, **kwargs) -> None:
++        self.replies.append(text)
++
++
++def _state() -> FSMContext:
++    return FSMContext(
++        storage=MemoryStorage(), key=StorageKey(bot_id=1, chat_id=1, user_id=1)
++    )
++
++
++def _settings() -> Settings:
++    return Settings(TELEGRAM_BOT_TOKEN="test", CPQ_NEW_PATH_ENABLED="true")
++
++
++class _RecordingService:
++    """Stands in for NewPathCPQService; records which entry point was hit."""
++
++    def __init__(self, real: NewPathCPQService) -> None:
++        self.real = real
++        self.calls: list[tuple] = []
++
++    def looks_like_full_rfq(self, text: str) -> bool:
++        return self.real.looks_like_full_rfq(text)
++
++    def close(self, request_id: str) -> None:
++        self.calls.append(("close", request_id))
++
++    def process_text(self, text: str) -> NewPathResult:
++        self.calls.append(("process_text", text))
++        return NewPathResult(request_id="new-1", question="What is the workload?")
++
++    def apply_clarification(self, request_id: str, answer: str) -> NewPathResult:
++        self.calls.append(("apply_clarification", request_id, answer))
++        return NewPathResult(request_id=request_id, question="Second question?")
++
++    def apply_manual_price(self, request_id, component, price, *, sku=None) -> NewPathResult:
++        self.calls.append(("apply_manual_price", request_id, component, price, sku))
++        return NewPathResult(request_id=request_id, rendered_html="<b>ok</b>")
++
++
++async def test_new_rfq_while_price_pending_starts_fresh_request(service) -> None:
++    recorder = _RecordingService(service)
++    state = _state()
++    await state.set_state(ClarifyStates.waiting_for_price)
++    await state.update_data(request_id="old-1", pending_prices=["(NEW) 256GB DDR5 RDIMM"])
++    message = _FakeMessage("Dell R760 8SFF, 2x Xeon Gold 6430, 256GB DDR5 RAM")
++    await handlers.handle_manual_price(message, state, engine=None, settings=_settings(), new_path=recorder)
++    kinds = [call[0] for call in recorder.calls]
++    assert "apply_manual_price" not in kinds
++    assert "process_text" in kinds
++    assert (await state.get_data()).get("request_id") == "new-1"
++
++
++async def test_plain_price_while_pending_asks_for_confirmation(service) -> None:
++    recorder = _RecordingService(service)
++    state = _state()
++    await state.set_state(ClarifyStates.waiting_for_price)
++    await state.update_data(request_id="old-1", pending_prices=["(NEW) 256GB DDR5 RDIMM"])
++    message = _FakeMessage("1,250")
++    await handlers.handle_manual_price(message, state, engine=None, settings=_settings(), new_path=recorder)
++    assert recorder.calls == []
++    confirmation = (await state.get_data()).get("pending_price_confirmation")
++    assert confirmation and confirmation["price"] == 1250.0
++    assert "1250.00 EUR" in message.replies[-1]
++
++
++async def test_confirmed_price_reaches_service_with_sku(service) -> None:
++    recorder = _RecordingService(service)
++    state = _state()
++    await state.set_state(ClarifyStates.waiting_for_price)
++    await state.update_data(
++        request_id="old-1",
++        pending_prices=["pending:tray:dell:r760:sff:new"],
++        pending_price_confirmation={"component": "pending:tray:dell:r760:sff:new", "price": 12.5, "sku": "0W4CN"},
++    )
++    message = _FakeMessage("yes")
++    await handlers.handle_manual_price(message, state, engine=None, settings=_settings(), new_path=recorder)
++    assert recorder.calls[0] == ("apply_manual_price", "old-1", "pending:tray:dell:r760:sff:new", 12.5, "0W4CN")
++
++
++async def test_short_clarification_answer_goes_to_apply_clarification(service) -> None:
++    recorder = _RecordingService(service)
++    state = _state()
++    await state.set_state(ClarifyStates.waiting_for_answer)
++    await state.update_data(request_id="old-1", cpq_path="new")
++    message = _FakeMessage("Dell R760")
++    await handlers.handle_clarification_answer(message, state, engine=None, settings=_settings(), new_path=recorder)
++    assert recorder.calls == [("apply_clarification", "old-1", "Dell R760")]
++
++
++async def test_full_rfq_during_clarification_starts_fresh_request(service) -> None:
++    recorder = _RecordingService(service)
++    state = _state()
++    await state.set_state(ClarifyStates.waiting_for_answer)
++    await state.update_data(request_id="old-1", cpq_path="new")
++    message = _FakeMessage("Dell R760 8SFF, 2x Xeon Gold 6430, 256GB DDR5 RAM")
++    await handlers.handle_clarification_answer(message, state, engine=None, settings=_settings(), new_path=recorder)
++    assert [call[0] for call in recorder.calls] == ["close", "process_text"]
++
++
++# --- #27-#30 prose RFQs: number words, TB RAM, NIC dedupe, clause windows ------
++
++EMAIL_RFQ = (
++    "Hi, we need a quote for a Dell PowerEdge R760 with two Intel Xeon Gold 6430 "
++    "processors, 512 GB of DDR5 memory, eight 1.92 TB SAS SSDs in RAID 10, dual 25 GbE "
++    "SFP28 ports, redundant power supplies and rail kit. Thanks, John"
++)
++
++
++def test_prose_email_rfq_keeps_every_material_field() -> None:
++    request = TextRequestParser().parse(EMAIL_RFQ).request
++    assert request.cpu.cpu_count == 2
++    assert request.cpu.explicit_model == "Gold 6430"
++    assert request.ram.min_gb == 512
++    assert len(request.storage) == 1
++    pool = request.storage[0]
++    assert (pool.drive_count, pool.min_drive_capacity_gb, pool.media, pool.interface) == (
++        8, 1920, "SSD", "SAS"
++    )
++    assert pool.raid_level == "10"
++    assert [(n.ports, n.speed_gb, n.media) for n in request.network] == [(2, 25, "SFP28")]
++
++
++@pytest.mark.parametrize(
++    ("text", "count", "model"),
++    [
++        ("two Intel Xeon Gold 6430 processors", 2, "Gold 6430"),
++        ("2 processors Intel Xeon Gold 6430", 2, "Gold 6430"),
++        ("dual Intel Xeon Gold 6430", 2, "Gold 6430"),
++        ("two processors", 2, None),
++        ("dual-socket server, 128GB", 2, None),
++        ("cheapest dual-socket 2U server with 128GB RAM", 2, None),
++    ],
++)
++def test_cpu_count_from_words(text: str, count: int, model) -> None:
++    request = TextRequestParser().parse(text).request
++    assert request.cpu.cpu_count == count
++    assert request.cpu.explicit_model == model
++
++
++@pytest.mark.parametrize(
++    ("text", "gb"),
++    [("1 TB RAM", 1024), ("1TB DDR5", 1024), ("1.5TB of memory", 1536), ("2TB DDR5, 8x 7.68TB NVMe", 2048)],
++)
++def test_terabyte_memory_is_read(text: str, gb: int) -> None:
++    assert TextRequestParser().parse(text).request.ram.min_gb == gb
++
++
++def test_terabyte_memory_does_not_become_storage() -> None:
++    request = TextRequestParser().parse("2TB DDR5, 8x 7.68TB NVMe").request
++    assert [(p.drive_count, p.min_drive_capacity_gb) for p in request.storage] == [(8, 7680)]
++
++
++def test_network_requirement_is_not_duplicated() -> None:
++    request = TextRequestParser().parse("2 ports 25GbE SFP28").request
++    assert [(n.ports, n.speed_gb, n.media) for n in request.network] == [(2, 25, "SFP28")]
++
++
++def test_usable_pool_keeps_media_and_protocol_after_raid_level() -> None:
++    pool = TextRequestParser().parse("40TB usable RAID6 SAS HDD").request.storage[0]
++    assert (pool.min_usable_gb, pool.media, pool.interface, pool.raid_level) == (
++        40000, "HDD", "SAS", "6"
++    )
++
++
++@pytest.mark.parametrize(
++    "text",
++    [
++        "8x 1.92 TB SAS SSDs in RAID 10, 2x 25 GbE SFP28",
++        "8x 1.92 TB SAS SSDs, 2x 25 GbE SFP28 ports",
++        "8x 1.92 TB SAS SSDs in RAID 10. 2x 25 GbE SFP28 ports",
++    ],
++)
++def test_drive_pack_survives_a_following_nic_clause(text: str) -> None:
++    request = TextRequestParser().parse(text).request
++    assert [(p.drive_count, p.min_drive_capacity_gb) for p in request.storage] == [(8, 1920)]
++    assert [(n.ports, n.speed_gb) for n in request.network] == [(2, 25)]
+-- 
+2.43.0
+
