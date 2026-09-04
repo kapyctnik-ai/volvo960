@@ -92,6 +92,11 @@ class DialView @JvmOverloads constructor(
 
     /** null blanks the needle: the car isn't reporting this reading. */
     fun setValue(value: Float?) {
+        // The poller publishes its state several times per pass, so the same
+        // reading arrives here several times over. Restarting the travel on
+        // each one re-eased the needle from wherever it was — a visible
+        // stutter — and polluted the sample-interval measurement.
+        if (haveValue == (value != null) && animTo == (value ?: 0f)) return
         val now = SystemClock.elapsedRealtime()
         // Readings arrive as fast as the K-line allows, which varies with what
         // else is being asked for. Measuring the gap rather than assuming it

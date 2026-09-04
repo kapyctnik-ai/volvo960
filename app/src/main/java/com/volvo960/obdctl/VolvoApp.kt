@@ -65,6 +65,8 @@ class VolvoApp : Application() {
         notificationHelper = NotificationHelper(this)
         transport.transportPreference = prefs.transportPreference
         transport.protocol = prefs.obdProtocol
+        transport.lastWorkingLink = prefs.lastWorkingLink
+        transport.onLinkWorked = { prefs.lastWorkingLink = it }
         vehicleData = VehicleDataPoller(transport, appScope, prefs, logger, GearEstimator(prefs))
         vehicleData.start()
     }

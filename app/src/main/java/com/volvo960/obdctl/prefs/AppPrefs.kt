@@ -22,6 +22,11 @@ class AppPrefs(context: Context) : VehicleDataPoller.TripStore, GearEstimator.St
         get() = prefs.getString(KEY_TRANSPORT, TRANSPORT_AUTO) ?: TRANSPORT_AUTO
         set(value) = prefs.edit().putString(KEY_TRANSPORT, value).apply()
 
+    /** "SPP" or "BLE": the radio that carried the last working connection. */
+    var lastWorkingLink: String?
+        get() = prefs.getString(KEY_LAST_LINK, null)
+        set(value) = prefs.edit().putString(KEY_LAST_LINK, value).apply()
+
     /**
      * ELM327 protocol number for `ATSP`. "3" is ISO 9141-2, which is what a
      * 1996 960 is wired for; "4"/"5" are KWP2000 and "0" lets the adapter hunt.
@@ -78,6 +83,7 @@ class AppPrefs(context: Context) : VehicleDataPoller.TripStore, GearEstimator.St
         private const val KEY_DEVICE_ADDRESS = "last_device_address"
         private const val KEY_TRANSPORT = "transport_preference"
         private const val KEY_PROTOCOL = "obd_protocol"
+        private const val KEY_LAST_LINK = "last_working_link"
         private const val KEY_GEAR_RATIOS = "gear_ratios"
         private const val KEY_TRIP_KM = "trip_km"
         private const val KEY_TOTAL_KM = "total_km"

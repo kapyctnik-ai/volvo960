@@ -34,18 +34,20 @@ class TileView @JvmOverloads constructor(
         const val EMPTY = "—"
     }
 
+    // Every setter checks for change first: the grid is fed several times a
+    // second and most of those feeds change nothing on most tiles.
     var label: String = ""
-        set(value) { field = value; invalidate() }
+        set(value) { if (field != value) { field = value; invalidate() } }
 
     var value: String? = null
-        set(v) { field = v; invalidate() }
+        set(v) { if (field != v) { field = v; invalidate() } }
 
     var unit: String = ""
-        set(value) { field = value; invalidate() }
+        set(value) { if (field != value) { field = value; invalidate() } }
 
     /** Overrides the value colour — used to flag a hot engine. */
     var valueColor: Int? = null
-        set(v) { field = v; invalidate() }
+        set(v) { if (field != v) { field = v; invalidate() } }
 
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BACKGROUND }
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

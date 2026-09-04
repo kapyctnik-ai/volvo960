@@ -14,8 +14,11 @@ import androidx.lifecycle.lifecycleScope
 import com.volvo960.obdctl.R
 import com.volvo960.obdctl.VolvoApp
 import com.volvo960.obdctl.transport.ConnectionState
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import kotlin.system.exitProcess
 
@@ -29,6 +32,7 @@ import kotlin.system.exitProcess
  * than sit on the radio draining the battery in a parked car.
  */
 @SuppressLint("MissingPermission")
+@OptIn(FlowPreview::class)
 class ObdService : LifecycleService() {
 
     companion object {
@@ -153,8 +157,16 @@ class ObdService : LifecycleService() {
         }
 
         lifecycleScope.launch {
+            // The poller publishes several times a second; re-posting the
+            // foreground notification at that rate is pure churn, and the
+            // system starts dropping updates. Sample it, then only repost when
+            // the words actually change.
             combine(app.transport.connectionState, app.vehicleData.state) { state, vehicle ->
                 state to vehicle
+            }.sample(1_500).distinctUntilChanged { old, new ->
+                old.first == new.first &&
+                    old.second.speedKmh == new.second.speedKmh &&
+                    old.second.coolantTempC == new.second.coolantTempC
             }.collect { (state, vehicle) ->
                 // The wake lock is held only while there is traffic to keep
                 // alive. Holding it for the life of the service kept the CPU

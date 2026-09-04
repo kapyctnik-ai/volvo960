@@ -92,6 +92,15 @@ class Elm327Transport(
      */
     @Volatile var protocol: String = "3"
 
+    /**
+     * Label of the link that carried the last successful connection ("SPP" or
+     * "BLE"), and a hook to persist it. In auto mode it goes first: on a
+     * dual-mode dongle whose LE side is not the ELM327, trying LE first cost a
+     * twenty-second handshake timeout on every single reconnect.
+     */
+    @Volatile var lastWorkingLink: String? = null
+    @Volatile var onLinkWorked: ((String) -> Unit)? = null
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutex = Mutex()
 
@@ -351,6 +360,11 @@ class Elm327Transport(
                 lastReplyAtMs = SystemClock.elapsedRealtime()
                 initAdapter()
                 connectionGeneration++
+                val kind = if (candidate is BleLink) "BLE" else "SPP"
+                if (lastWorkingLink != kind) {
+                    lastWorkingLink = kind
+                    onLinkWorked?.invoke(kind)
+                }
                 val name = try { device.name } catch (e: SecurityException) { null } ?: device.address
                 _connectionState.value = ConnectionState.Connected("$name · ${candidate.label}", device.address)
                 return null
@@ -390,7 +404,12 @@ class Elm327Transport(
         return when (type) {
             BluetoothDevice.DEVICE_TYPE_LE -> listOf(BleLink(context, device, logger))
             BluetoothDevice.DEVICE_TYPE_CLASSIC -> listOf(SppLink(device, logger))
-            else -> listOf(BleLink(context, device, logger), SppLink(device, logger))
+            else -> {
+                val ble = BleLink(context, device, logger)
+                val spp = SppLink(device, logger)
+                // Whichever worked last time goes first; LE otherwise.
+                if (lastWorkingLink == "SPP") listOf(spp, ble) else listOf(ble, spp)
+            }
         }
     }
 

@@ -59,7 +59,11 @@ class DashActivity : AppCompatActivity() {
     private lateinit var tileIntake: TileView
 
     private val permissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+            // First launch: the connect attempt that ran before the prompt had
+            // no permission to work with. Now it does.
+            if (granted.values.any { it }) autoConnect()
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

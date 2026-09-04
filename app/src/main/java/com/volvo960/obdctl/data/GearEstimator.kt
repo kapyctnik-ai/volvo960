@@ -10,26 +10,23 @@ import kotlin.math.abs
  * engine speed to road speed is a constant, fixed by the gearbox, the final
  * drive and the rolling circumference. Both halves are polled every pass.
  *
- * The first version numbered gears by rank — the highest ratio seen was called
- * first — which is wrong the moment you have not driven in every gear yet.
- * Cruising at 45 km/h and 1400 rpm reads 31 rpm per km/h and was announced as
- * first gear; it is direct drive, third on this car.
+ * The gearbox is known — an AW30-40 four-speed automatic — so its four ratios
+ * are fixed here, and the only thing to learn is the scale that turns them into
+ * rpm per km/h: `final drive x 1000 / (60 x rolling circumference)`. The axle
+ * and tyres give 33.6, but the car reads a few per cent under that because OBD
+ * speed comes off the speedometer sender, so the scale is calibrated from what
+ * is actually observed, within a band around the arithmetic.
  *
- * So the ratios are matched against the gearbox instead. Two facts make that
- * possible without knowing the car's exact specification:
+ * Naming then needs no history at all: the current ratio is matched to the
+ * nearest of the four gears at the calibrated scale. Earlier versions named
+ * gears by rank among the ratios seen so far and could announce a sixth gear
+ * on a four-speed box, because a torque converter makes every gear show up
+ * twice — locked and slipping — and rank counted clusters, not gears.
  *
- *  - the gearbox has a known set of internal ratios, and one of them is
- *    exactly 1.000 — direct drive is standard on both the four-speed automatic
- *    and the five-speed manual fitted to a 960;
- *  - the scale factor between an internal ratio and rpm-per-km/h is
- *    `final drive x 1000 / (60 x rolling circumference)`, and for anything a
- *    960 could be wearing that lands between 26 and 36. A 3.31 to 4.10 final
- *    drive on a 1.9 to 2.1 metre circumference cannot produce anything else.
- *
- * That range is what disambiguates. An observed 31 could be direct drive at a
- * scale of 31, or second gear at a scale of 21 — but 21 is not a scale any
- * 960 can have, so it is direct drive, and everything else follows. One
- * observed gear is enough to name it.
+ * Lock-up is read off the same number: with the converter locked there is no
+ * slip and the ratio sits on the gear's value; slipping, it sits a few per
+ * cent above. Calibration therefore uses the lowest ratio seen in each gear,
+ * which is the locked one.
  */
 class GearEstimator(private val store: Store) {
 
@@ -39,9 +36,6 @@ class GearEstimator(private val store: Store) {
     }
 
     private data class Cluster(var ratio: Double, var samples: Int)
-
-    /** A gearbox's internal ratios, highest first. */
-    private class Gearbox(val name: String, val ratios: DoubleArray)
 
     private companion object {
         /** Below these the ratio is noise: creeping, or a converter slipping wildly. */
@@ -53,31 +47,17 @@ class GearEstimator(private val store: Store) {
         /** Two consecutive samples must agree this closely to count as steady. */
         const val STEADY_TOLERANCE = 0.04
         /** How far from a cluster's centre still belongs to it. */
-        const val MATCH_TOLERANCE = 0.07
+        const val MATCH_TOLERANCE = 0.05
         /** A cluster is only believed once it has been seen this often. */
         const val MIN_SAMPLES = 8
-        /** More than a gearbox could have; guards against noise breeding clusters. */
-        const val MAX_CLUSTERS = 8
+        /** Four gears, locked and slipping, plus room for a little noise. */
+        const val MAX_CLUSTERS = 10
         /** How much each new sample moves a cluster's centre. */
         const val LEARN_RATE = 0.15
         const val SAVE_EVERY = 10
 
-        /**
-         * rpm per km/h in direct drive: `final drive x 1000 / (60 x circumference)`.
-         *
-         * The hard bounds are deliberately loose — a 3.31 axle on 2.2 m of tyre
-         * gives 25, a 4.56 on 1.85 m gives 41 — because their job is to throw
-         * out impossible readings, not to insist on a specification.
-         *
-         * The expected band is this car: a 4.00 axle on 1.9-2.2 m of tyre. It
-         * only breaks ties, because the car does not quite agree with it: a
-         * steady cruise reads about 31 where the arithmetic says 33.5. The
-         * likely reason is the speed itself — OBD speed comes off the
-         * speedometer sender, which over-reads by a few per cent on a car this
-         * age, and a few per cent of speed is a few per cent of ratio.
-         */
-        const val SCALE_MIN = 24.0
-        const val SCALE_MAX = 41.0
+        /** AW30-40: 2.393 / 1.450 / 1.000 / 0.694. */
+        val GEAR_RATIOS = doubleArrayOf(2.393, 1.450, 1.000, 0.694)
 
         /**
          * What this car should read in direct drive: a 4.00 axle on 205/55 R16.
@@ -85,35 +65,26 @@ class GearEstimator(private val store: Store) {
          * around, and 4000 / (60 x 1.985) = 33.6.
          */
         const val EXPECTED_SCALE = 33.6
-        const val EXPECTED_SCALE_MIN = 30.0
-        const val EXPECTED_SCALE_MAX = 35.5
+        /** How far the calibrated scale may stray from the arithmetic. */
+        const val SCALE_BAND = 0.15
 
-        /**
-         * How far a cluster may sit from a gearbox ratio and still be it.
-         * Generous, because a slipping torque converter puts a gear up to
-         * eight per cent out — and gears are 25 % apart at the very closest,
-         * so there is nothing to confuse it with.
-         */
-        const val FIT_TOLERANCE = 0.15
-
-        /**
-         * The two gearboxes a 960 came with. The automatic is first because
-         * this car has one, and because a torque converter is what makes a gear
-         * show up twice.
-         */
-        val GEARBOXES = listOf(
-            Gearbox("AW30-40", doubleArrayOf(2.393, 1.450, 1.000, 0.694)),
-            Gearbox("M90", doubleArrayOf(3.54, 2.05, 1.38, 1.00, 0.81)),
-        )
+        /** How far a ratio may sit from a gear's value and still be that gear. */
+        const val GEAR_TOLERANCE = 0.15
+        /** Within this of the gear's value the converter is locked; above it, slipping. */
+        const val LOCKUP_SLIP = 0.035
+        /** Clusters this far from every gear are noise and get dropped. */
+        const val PRUNE_TOLERANCE = 0.20
     }
 
     private val clusters = mutableListOf<Cluster>()
     private var lastRatio: Double? = null
     private var currentGear: String? = null
     private var sinceSave = 0
+    private var scale = EXPECTED_SCALE
 
     init {
         load()
+        calibrate()
     }
 
     /**
@@ -132,144 +103,123 @@ class GearEstimator(private val store: Store) {
         val previous = lastRatio
         lastRatio = ratio
         // Mid-shift the ratio sweeps through every value between two gears.
-        // Learning from that would smear the clusters together, so only steady
-        // samples are used — the previous reading has to agree with this one.
+        // Neither naming nor learning is done from that — the previous reading
+        // has to agree with this one.
         if (previous == null || abs(ratio - previous) / ratio > STEADY_TOLERANCE) {
             return currentGear
         }
 
+        learn(ratio)
+        currentGear = nameFor(ratio)
+        return currentGear
+    }
+
+    private fun learn(ratio: Double) {
         val match = clusters.minByOrNull { abs(it.ratio - ratio) / it.ratio }
         if (match != null && abs(match.ratio - ratio) / match.ratio <= MATCH_TOLERANCE) {
             val wasBelieved = match.samples >= MIN_SAMPLES
             match.ratio += (ratio - match.ratio) * LEARN_RATE
             match.samples++
-            currentGear = nameFor(match)
             if (!wasBelieved && match.samples >= MIN_SAMPLES) {
+                // A cluster just became evidence; recalibrate and keep it.
+                calibrate()
                 sinceSave = 0
                 save()
-                return currentGear
+                return
             }
-        } else if (clusters.size < MAX_CLUSTERS) {
-            val fresh = Cluster(ratio, 1)
-            clusters += fresh
-            currentGear = nameFor(fresh)
-            // A gear found for the first time is the whole point of learning,
-            // and the app can be killed at any moment — save it now.
-            sinceSave = 0
-            save()
-            return currentGear
+        } else {
+            if (clusters.size >= MAX_CLUSTERS) prune(force = true)
+            if (clusters.size < MAX_CLUSTERS) clusters += Cluster(ratio, 1)
         }
-
         if (++sinceSave >= SAVE_EVERY) {
             sinceSave = 0
+            prune(force = false)
+            calibrate()
             save()
         }
-        return currentGear
     }
 
-    /** The scale factor and gearbox that best explain the ratios seen so far. */
-    private class Fit(
-        val scale: Double,
-        val box: Gearbox,
-        val error: Double,
-        val explained: Int,
-        /** Whether the scale matches this car's 4.00 axle on plausible tyres. */
-        val expected: Boolean,
-    ) {
-        /**
-         * More gears explained wins first — the pattern across the set is what
-         * identifies the gearbox. A scale this car could actually have breaks
-         * the remaining ties, and only then the closeness of the fit.
-         */
-        fun betterThan(other: Fit): Boolean = when {
-            explained != other.explained -> explained > other.explained
-            expected != other.expected -> expected
-            else -> error < other.error - 1e-9
+    /**
+     * Sets [scale] from the believed clusters.
+     *
+     * Each believed cluster implies a scale for each gear it could be; the one
+     * that explains the most clusters wins, ties going to the arithmetic. It
+     * is then refined to the lowest ratio seen per gear — the locked-up
+     * reading — so that "L" means what it says.
+     */
+    private fun calibrate() {
+        val believed = clusters.filter { it.samples >= MIN_SAMPLES }
+        if (believed.isEmpty()) {
+            scale = EXPECTED_SCALE
+            return
         }
-    }
+        val lowest = EXPECTED_SCALE * (1 - SCALE_BAND)
+        val highest = EXPECTED_SCALE * (1 + SCALE_BAND)
 
-    private fun bestFit(believed: List<Cluster>): Fit? {
-        if (believed.isEmpty()) return null
-        val anchor = believed.maxByOrNull { it.samples } ?: return null
-        var best: Fit? = null
-        for (box in GEARBOXES) {
-            for (candidate in box.ratios) {
-                // Assume the best-attested cluster is this gear, and see what
-                // scale that implies. Most guesses are thrown out by physics
-                // before anything else is even considered.
-                val scale = anchor.ratio / candidate
-                if (scale < SCALE_MIN || scale > SCALE_MAX) continue
-                var total = 0.0
-                var fits = true
-                for (cluster in believed) {
-                    val error = relativeErrorToNearest(cluster.ratio, scale, box)
-                    if (error > FIT_TOLERANCE) {
-                        fits = false
-                        break
-                    }
-                    total += error * error
+        var bestScale = EXPECTED_SCALE
+        var bestExplained = -1
+        var bestDistance = Double.MAX_VALUE
+        for (cluster in believed) {
+            for (gear in GEAR_RATIOS) {
+                val candidate = cluster.ratio / gear
+                if (candidate < lowest || candidate > highest) continue
+                val explained = believed.count { gearIndex(it.ratio, candidate) != null }
+                val distance = abs(candidate - EXPECTED_SCALE)
+                if (explained > bestExplained || (explained == bestExplained && distance < bestDistance)) {
+                    bestScale = candidate
+                    bestExplained = explained
+                    bestDistance = distance
                 }
-                if (!fits) continue
-                // How many distinct gears this explains. A fit that accounts
-                // for four gears is worth more than a tighter one that only
-                // accounts for two: with one cluster almost any scale fits,
-                // and it is the pattern of the whole set that identifies the
-                // gearbox.
-                val explained = believed.mapNotNull { gearIndex(it.ratio, scale, box) }.distinct().size
-                val expected = scale in EXPECTED_SCALE_MIN..EXPECTED_SCALE_MAX
-                val fit = Fit(scale, box, total / believed.size, explained, expected)
-                if (best == null || fit.betterThan(best)) best = fit
             }
         }
-        return best
+
+        // Refine on the locked readings: per gear, the lowest believed ratio.
+        val perGear = HashMap<Int, Double>()
+        for (cluster in believed) {
+            val index = gearIndex(cluster.ratio, bestScale) ?: continue
+            val current = perGear[index]
+            if (current == null || cluster.ratio < current) perGear[index] = cluster.ratio
+        }
+        if (perGear.isNotEmpty()) {
+            val refined = perGear.entries.map { (index, ratio) -> ratio / GEAR_RATIOS[index] }.average()
+            scale = refined.coerceIn(lowest, highest)
+        } else {
+            scale = bestScale
+        }
     }
 
-    private fun relativeErrorToNearest(ratio: Double, scale: Double, box: Gearbox): Double =
-        box.ratios.minOf { abs(ratio - scale * it) / (scale * it) }
-
-    private fun gearIndex(ratio: Double, scale: Double, box: Gearbox): Int? {
+    private fun gearIndex(ratio: Double, atScale: Double): Int? {
         var bestIndex = -1
         var bestError = Double.MAX_VALUE
-        box.ratios.forEachIndexed { index, gear ->
-            val error = abs(ratio - scale * gear) / (scale * gear)
+        GEAR_RATIOS.forEachIndexed { index, gear ->
+            val error = abs(ratio - atScale * gear) / (atScale * gear)
             if (error < bestError) {
                 bestError = error
                 bestIndex = index
             }
         }
-        return if (bestIndex == -1 || bestError > FIT_TOLERANCE) null else bestIndex
+        return if (bestIndex == -1 || bestError > GEAR_TOLERANCE) null else bestIndex
+    }
+
+    /** "3", "4L", or null when the ratio is not near any gear. */
+    private fun nameFor(ratio: Double): String? {
+        val index = gearIndex(ratio, scale) ?: return null
+        val slip = ratio / (scale * GEAR_RATIOS[index]) - 1.0
+        return if (slip <= LOCKUP_SLIP) "${index + 1}L" else "${index + 1}"
     }
 
     /**
-     * Names the gear a cluster belongs to: "3", or "4L" when the torque
-     * converter is locked up in it.
-     *
-     * With the converter unlocked it slips, so the engine turns five to eight
-     * per cent faster for the same road speed. Both readings match the same
-     * gearbox ratio; the lower of the two is the locked one, because locked
-     * means no slip.
+     * Drops clusters that no gear explains. With [force] the weakest one goes
+     * regardless, to make room; otherwise only the ones that are plainly noise.
      */
-    private fun nameFor(cluster: Cluster): String? {
-        if (cluster.samples < MIN_SAMPLES) return null
-        val believed = clusters.filter { it.samples >= MIN_SAMPLES }
-        val fit = bestFit(believed) ?: return rankName(cluster, believed)
-        val index = gearIndex(cluster.ratio, fit.scale, fit.box) ?: return null
-        val sameGear = believed.filter { gearIndex(it.ratio, fit.scale, fit.box) == index }
-        val lowest = sameGear.minOf { it.ratio }
-        val locked = sameGear.size > 1 && cluster.ratio <= lowest + 1e-9
-        return if (locked) "${index + 1}L" else "${index + 1}"
-    }
-
-    /**
-     * Fallback for ratios no gearbox explains — a different final drive, or
-     * wheels far from standard. Numbers by rank, and says nothing until two
-     * gears have been told apart, since one alone could be any of them.
-     */
-    private fun rankName(cluster: Cluster, believed: List<Cluster>): String? {
-        if (believed.size < 2) return null
-        val order = believed.sortedByDescending { it.ratio }
-        val index = order.indexOfFirst { it === cluster }
-        return if (index == -1) null else "${index + 1}?"
+    private fun prune(force: Boolean) {
+        val noise = clusters.filter { cluster ->
+            GEAR_RATIOS.minOf { abs(cluster.ratio - scale * it) / (scale * it) } > PRUNE_TOLERANCE
+        }
+        clusters.removeAll(noise.toSet())
+        if (force && clusters.size >= MAX_CLUSTERS) {
+            clusters.minByOrNull { it.samples }?.let { clusters.remove(it) }
+        }
     }
 
     /**
@@ -279,24 +229,18 @@ class GearEstimator(private val store: Store) {
      */
     fun describe(): List<String> {
         if (clusters.isEmpty()) return emptyList()
-        val believed = clusters.filter { it.samples >= MIN_SAMPLES }
-        val fit = bestFit(believed)
-        val header = if (fit == null) {
-            "коробка не определена"
-        } else {
-            // The gap between what the axle and tyres say and what the car
-            // reports is the speed reading itself: the sender over-reads, and
-            // that same error is in trip distance and in litres per 100 km.
-            val bias = (EXPECTED_SCALE / fit.scale - 1.0) * 100.0
-            val note = when {
-                bias > 2.0 -> "скорость по OBD завышена примерно на %.0f %%".format(bias)
-                bias < -2.0 -> "скорость по OBD занижена примерно на %.0f %%".format(-bias)
-                else -> "скорость по OBD сходится с расчётом"
-            }
-            "%s, масштаб %.1f (расчётный %.1f)\n%s".format(fit.box.name, fit.scale, EXPECTED_SCALE, note)
+        // The gap between what the axle and tyres say and what the car reports
+        // is the speed reading itself: the sender over-reads, and that same
+        // error is in trip distance and in litres per 100 km.
+        val bias = (EXPECTED_SCALE / scale - 1.0) * 100.0
+        val note = when {
+            bias > 2.0 -> "скорость по OBD завышена примерно на %.0f %%".format(bias)
+            bias < -2.0 -> "скорость по OBD занижена примерно на %.0f %%".format(-bias)
+            else -> "скорость по OBD сходится с расчётом"
         }
+        val header = "AW30-40, масштаб %.1f (расчётный %.1f)\n%s".format(scale, EXPECTED_SCALE, note)
         val rows = clusters.sortedByDescending { it.ratio }.map { cluster ->
-            val name = nameFor(cluster) ?: "—"
+            val name = if (cluster.samples >= MIN_SAMPLES) nameFor(cluster.ratio) ?: "шум" else "мало данных"
             "%.1f  ->  %s   (%d замеров)".format(cluster.ratio, name, cluster.samples)
         }
         return listOf(header) + rows
@@ -307,6 +251,7 @@ class GearEstimator(private val store: Store) {
         clusters.clear()
         lastRatio = null
         currentGear = null
+        scale = EXPECTED_SCALE
         store.gearRatios = ""
     }
 

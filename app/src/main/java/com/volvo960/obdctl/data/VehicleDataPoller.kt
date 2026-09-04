@@ -162,7 +162,16 @@ class VehicleDataPoller(
     }
 
     private val _state = MutableStateFlow(
-        VehicleState(tripKm = prefs.tripKm, totalKm = prefs.totalKm, tripFuelL = prefs.tripFuelL, tankLiters = prefs.tankLiters)
+        VehicleState(
+            tripKm = prefs.tripKm,
+            totalKm = prefs.totalKm,
+            tripFuelL = prefs.tripFuelL,
+            tankLiters = prefs.tankLiters,
+            // The averages are derived from persisted counters, so they are
+            // known before the car has said a word.
+            averageL100 = averageOf(prefs.tripFuelL, prefs.tripKm),
+            averageAllL100 = averageOf(prefs.totalFuelL, prefs.totalKm),
+        ).let { it.copy(rangeKm = rangeFor(it.tankLiters, it.averageL100)) }
     )
     val state: StateFlow<VehicleState> = _state.asStateFlow()
 
@@ -202,6 +211,8 @@ class VehicleDataPoller(
     private var longTrim: Double? = null
     private var lastMapKpa: Int? = null
     private var slowCursor = 0
+    private var rpmMisses = 0
+    private var speedMisses = 0
     /** Lowest throttle reading seen this session — the sensor's closed position. */
     private var closedThrottlePercent = 100
     private var overrunActive = false
@@ -269,6 +280,7 @@ class VehicleDataPoller(
                         tripFuelL = it.tripFuelL,
                         tankLiters = it.tankLiters,
                         averageL100 = it.averageL100,
+                        averageAllL100 = it.averageAllL100,
                         rangeKm = it.rangeKm,
                     )
                 }
@@ -295,16 +307,22 @@ class VehicleDataPoller(
             // consumption figure is made of.
             var readAnything = false
 
-            val rpm = read(PID_RPM, 0x0C, 2)?.let { (a, b) -> ((a * 256) + b) / 4 }
-            if (rpm != null) readAnything = true
-            // Speed and rpm are blanked when the request fails rather than
-            // kept: a stale speed would go on adding distance and fuel the car
-            // never covered, and a needle frozen at the last value is a lie the
-            // driver can act on.
+            // Speed and rpm are blanked when requests fail rather than kept:
+            // a stale speed would go on adding distance and fuel the car never
+            // covered, and a needle frozen at the last value is a lie the
+            // driver can act on. One miss is forgiven, though — the K-line
+            // drops the odd reply, and a needle that falls to zero and climbs
+            // back on every dropped reply is its own kind of lie.
+            val rpmRead = read(PID_RPM, 0x0C, 2)?.let { (a, b) -> ((a * 256) + b) / 4 }
+            rpmMisses = if (rpmRead == null) rpmMisses + 1 else 0
+            val rpm = rpmRead ?: if (rpmMisses <= 1) _state.value.rpm else null
+            if (rpmRead != null) readAnything = true
             _state.update { it.copy(rpm = rpm) }
 
-            val speed = read(PID_SPEED, 0x0D, 1)?.first
-            if (speed != null) readAnything = true
+            val speedRead = read(PID_SPEED, 0x0D, 1)?.first
+            speedMisses = if (speedRead == null) speedMisses + 1 else 0
+            val speed = speedRead ?: if (speedMisses <= 1) _state.value.speedKmh else null
+            if (speedRead != null) readAnything = true
             val gear = gears.update(rpm, speed)
             _state.update { it.copy(speedKmh = speed, gear = gear) }
 
@@ -314,7 +332,9 @@ class VehicleDataPoller(
             val throttle = read(PID_THROTTLE, 0x11, 1)?.let { (a, _) -> a * 100 / 255 }
             if (throttle != null) {
                 readAnything = true
-                if (throttle < closedThrottlePercent) closedThrottlePercent = throttle
+                // The sensor reads about 7 % released; a zero is a glitch and
+                // would make the cut-off unreachable for the rest of the drive.
+                if (throttle in 1 until closedThrottlePercent) closedThrottlePercent = throttle
             }
             _state.update { it.copy(throttlePercent = throttle) }
 
@@ -502,6 +522,10 @@ class VehicleDataPoller(
                 lockedSource = FuelSource.ECU_FUEL_RATE
                 return ((a * 256 + b) / 20.0) to FuelSource.ECU_FUEL_RATE
             }
+            // A locked tier that misses once is a miss, not a reason to drop
+            // to a worse tier: falling through here used to switch a working
+            // MAF car onto the MAP estimate for good after one ignored request.
+            if (lockedSource == FuelSource.ECU_FUEL_RATE) return null
         }
         if (lockedSource == null || lockedSource == FuelSource.MAF) {
             read(PID_MAF, 0x10, 2)?.let { (a, b) ->
@@ -509,6 +533,7 @@ class VehicleDataPoller(
                 val mafGs = (a * 256 + b) / 100.0
                 return litresPerHour(mafGs) to FuelSource.MAF
             }
+            if (lockedSource == FuelSource.MAF) return null
         }
         read(PID_MAP, 0x0B, 1)?.let { (a, _) ->
             lastMapKpa = a
@@ -606,8 +631,8 @@ class VehicleDataPoller(
         prefs.totalFuelL = totalFuel
         prefs.tankLiters = tank
 
-        val average = if (tripKm > 0.3 && tripFuel > 0.01) tripFuel / tripKm * 100.0 else null
-        val averageAll = if (totalKm > 0.3 && totalFuel > 0.01) totalFuel / totalKm * 100.0 else null
+        val average = averageOf(tripFuel, tripKm)
+        val averageAll = averageOf(totalFuel, totalKm)
         _state.update {
             it.copy(
                 fuelRateLph = fuel?.first,
@@ -623,6 +648,9 @@ class VehicleDataPoller(
             )
         }
     }
+
+    private fun averageOf(litres: Double, km: Double): Double? =
+        if (km > 0.3 && litres > 0.01) litres / km * 100.0 else null
 
     private fun rangeFor(tankLiters: Double, averageL100: Double?): Int? {
         if (averageL100 == null || averageL100 <= 0.1) return null
