@@ -1,0 +1,56 @@
+name: Build Rentpoly APK
+
+on:
+  push:
+    branches: [ "rentpoly" ]
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rentpoly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        run: chmod +x gradlew && ./gradlew assembleDebug --stacktrace
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rentpoly-${{ github.run_number }}
+          name: Rentpoly #${{ github.run_number }}
+          prerelease: true
+          files: app/build/outputs/apk/debug/app-debug.apk
+
+      # Only the newest Rentpoly release is kept; the dashboard's releases
+      # live under their own prefix and are left alone.
+      - name: Keep only the newest Rentpoly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
+            --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("rentpoly-"))] | sort_by(.createdAt) | reverse | .[1:] | .[].tagName' \
+          | while read -r tag; do
+              [ -n "$tag" ] || continue
+              gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+            done
