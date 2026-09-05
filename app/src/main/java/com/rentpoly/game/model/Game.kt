@@ -30,6 +30,8 @@ sealed class GameEvent {
     data class CardDrawn(val deck: String, val text: String) : GameEvent()
     data class Bought(val player: Int, val cell: Int) : GameEvent()
     data class Paid(val from: Int, val to: Int, val amount: Int, val why: String) : GameEvent()
+    /** Money that came from the bank: Start salary, a lucky card. */
+    data class Gained(val player: Int, val amount: Int, val why: String) : GameEvent()
     data class Bankrupt(val player: Int) : GameEvent()
     data class Winner(val player: Int) : GameEvent()
 }
@@ -224,23 +226,27 @@ class Game(
         val from = p.position
         var to = (from + steps) % Board.SIZE
         if (to < 0) to += Board.SIZE
-        if (steps > 0 && to < from) {
+        val salary = steps > 0 && to < from
+        if (salary) {
             p.money += Board.GO_SALARY
             say("${p.name} проходит Старт: +${Board.GO_SALARY}.")
         }
         p.position = to
         events += GameEvent.Moved(p.id, from, to, steps)
+        if (salary) events += GameEvent.Gained(p.id, Board.GO_SALARY, "Старт")
     }
 
     private fun moveTo(p: Player, cell: Int, collectGo: Boolean) {
         val from = p.position
         val steps = ((cell - from) + Board.SIZE) % Board.SIZE
-        if (collectGo && cell <= from) {
+        val salary = collectGo && cell <= from
+        if (salary) {
             p.money += Board.GO_SALARY
             say("${p.name} проходит Старт: +${Board.GO_SALARY}.")
         }
         p.position = cell
         events += GameEvent.Moved(p.id, from, cell, steps)
+        if (salary) events += GameEvent.Gained(p.id, Board.GO_SALARY, "Старт")
     }
 
     private fun sendToJail(p: Player) {
@@ -298,6 +304,7 @@ class Game(
         when (val a = card.action) {
             is CardAction.Money -> if (a.amount >= 0) {
                 p.money += a.amount
+                events += GameEvent.Gained(p.id, a.amount, name)
             } else {
                 pay(p, null, -a.amount, name)
             }
