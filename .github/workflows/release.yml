@@ -65,7 +65,7 @@ jobs:
         run: |
           gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
             --json tagName,createdAt \
-            --jq 'sort_by(.createdAt) | reverse | .[1:] | .[].tagName' \
+            --jq '[.[] | select(.tagName | startswith("build-"))] | sort_by(.createdAt) | reverse | .[1:] | .[].tagName' \
           | while read -r tag; do
               [ -n "$tag" ] || continue
               echo "removing $tag"
