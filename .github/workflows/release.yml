@@ -38,18 +38,23 @@ jobs:
         with:
           tag_name: rentpoly-${{ github.run_number }}
           name: Rentpoly #${{ github.run_number }}
+          # Tag the commit that was built. The action's default is the head
+          # of the repository's default branch, which is the dashboard.
+          target_commitish: ${{ github.sha }}
           prerelease: true
           files: app/build/outputs/apk/debug/app-debug.apk
 
       # Only the newest Rentpoly release is kept; the dashboard's releases
-      # live under their own prefix and are left alone.
+      # live under their own prefix and are left alone. Newest is decided by
+      # the run number in the tag: release dates come from the tagged commit
+      # and can tie, and a tie once deleted the release that had just been made.
       - name: Keep only the newest Rentpoly release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release list --repo "$GITHUB_REPOSITORY" --limit 200 \
-            --json tagName,createdAt \
-            --jq '[.[] | select(.tagName | startswith("rentpoly-"))] | sort_by(.createdAt) | reverse | .[1:] | .[].tagName' \
+            --json tagName \
+            --jq '[.[] | select(.tagName | startswith("rentpoly-"))] | sort_by(.tagName | ltrimstr("rentpoly-") | tonumber) | reverse | .[1:] | .[].tagName' \
           | while read -r tag; do
               [ -n "$tag" ] || continue
               gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
